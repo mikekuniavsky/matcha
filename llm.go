@@ -44,7 +44,7 @@ func (l *LLMClient) Summarize(text string) string {
 
 	prompt := l.config.SummaryPrompt
 	if prompt == "" {
-		prompt = "Summarize the following text:"
+		prompt = "Summarize the following news article concisely in plain language, covering the who, what, when, where, why, and how, and keep the summary under 150 words; use bullet points to make visual scanning easier:"
 	}
 
 	model := l.config.OpenAIModel
