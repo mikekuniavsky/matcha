@@ -33,7 +33,7 @@ func summarize(text string) string {
 
 	prompt := summaryPrompt
 	if prompt == "" {
-		prompt = "Summarize the following text:"
+		prompt = "Summarize the following news article concisely in plain language, covering the who, what, when, where, why, and how, and keep the summary under 150 words. Use bullet points to make visual scanning easier. If you saw this topic earlier in this session, write [SIMILAR TO ABOVE] and don't summarize any further:"
 	}
 
 	clientConfig := openai.DefaultConfig(openaiApiKey)
