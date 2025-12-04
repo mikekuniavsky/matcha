@@ -87,7 +87,7 @@ func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer,
 }
 
 func getSummary(llm *LLMClient, item *gofeed.Item, cfg *Config) string {
-	fmt.Println("outside")
+	fmt.Printf("Summarizing: %s\n", item.Link)
 	if llm != nil {
 		scrapedText, err := readability.FromURL(item.Link, 30*time.Second)
 		content := item.Description
