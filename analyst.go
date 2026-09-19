@@ -73,7 +73,7 @@ func collectArticlesForAnalysis(cfg *Config, store *Storage, fp *gofeed.Parser) 
 			articles = append(articles, articleText)
 
 			if !seenToday {
-				if err := store.MarkAsSeen(articleLink, summary); err != nil {
+				if err := store.MarkAsSeen(articleLink, summary, item.Title, feed.Title, feed.Link); err != nil {
 					continue
 				}
 			}

@@ -2,11 +2,21 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 )
 
 type Storage struct {
 	db *sql.DB
+}
+
+type ArchivedItem struct {
+	URL       string
+	Date      string
+	Summary   string
+	Title     string
+	FeedTitle string
+	FeedURL   string
 }
 
 func NewStorage(dbPath string) (*Storage, error) {
@@ -19,91 +29,87 @@ func NewStorage(dbPath string) (*Storage, error) {
 	if err := s.applyMigrations(); err != nil {
 		return nil, err
 	}
+
 	return s, nil
 }
 
 func (s *Storage) applyMigrations() error {
-	// create new table on database
 	var err error
 	_, err = s.db.Exec("CREATE TABLE IF NOT EXISTS seen (url TEXT, date TEXT, summary TEXT)")
+	if err != nil {
+		return err
+	}
 
-	if err != nil {
+	if err := s.addTextColumnIfNotExists("seen", "summary"); err != nil {
 		return err
 	}
-	err = s.addSummaryColumnIfNotExists()
-	if err != nil {
+	if err := s.addTextColumnIfNotExists("seen", "title"); err != nil {
 		return err
 	}
+	if err := s.addTextColumnIfNotExists("seen", "feed_title"); err != nil {
+		return err
+	}
+
 	if err := s.addNotificationsTableIfNotExists(); err != nil {
 		return err
 	}
-
 	return nil
 }
 
-func (s *Storage) addNotificationsTableIfNotExists() error {
-	_, err := s.db.Exec(`
-        CREATE TABLE IF NOT EXISTS notifications (
-            feed TEXT,
-            date TEXT,
-            notified INTEGER DEFAULT 0,
-            PRIMARY KEY (feed, date)
-        )
-    `)
-	return err
-}
-
-func (s *Storage) addSummaryColumnIfNotExists() error {
+// Generic helper to add columns
+func (s *Storage) addTextColumnIfNotExists(table, colName string) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	// Check if the 'summary' column already exists in the 'seen' table
-	rows, err := tx.Query("PRAGMA table_info(seen)")
+	rows, err := tx.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 
-	var columnExists bool
+	exists := false
 	for rows.Next() {
 		var cid int
-		var name string
-		var dataType string
-		var notNull int
-		var dfltValue interface{}
-		var pk int
-		err := rows.Scan(&cid, &name, &dataType, &notNull, &dfltValue, &pk)
-		if err != nil {
+		var name, ctype string
+		var notNull, pk int
+		var dflt interface{}
+		if err := rows.Scan(&cid, &name, &ctype, &notNull, &dflt, &pk); err != nil {
 			return err
 		}
-		if name == "summary" {
-			columnExists = true
+		if name == colName {
+			exists = true
 			break
 		}
 	}
 
-	// If the 'summary' column doesn't exist, add it to the table
-	if !columnExists {
-		_, err = tx.Exec("ALTER TABLE seen ADD COLUMN summary TEXT")
+	if !exists {
+		_, err = tx.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s TEXT", table, colName))
 		if err != nil {
 			return err
 		}
 	}
-
-	// Commit the transaction
-	err = tx.Commit()
-	if err != nil {
-		return err
-	}
-	return nil
+	return tx.Commit()
 }
 
-func (s *Storage) MarkAsSeen(url, summary string) error {
+func (s *Storage) addNotificationsTableIfNotExists() error {
+	_, err := s.db.Exec(`
+		CREATE TABLE IF NOT EXISTS notifications (
+			feed TEXT,
+			date TEXT,
+			notified INTEGER DEFAULT 0,
+			PRIMARY KEY (feed, date)
+		)
+	`)
+	return err
+}
+
+func (s *Storage) MarkAsSeen(url, summary, title, feedTitle, feedURL string) error {
 	today := time.Now().Format("2006-01-02")
-	_, err := s.db.Exec("INSERT INTO seen(url, date, summary) values(?,?,?)", url, today, summary)
+	_, err := s.db.Exec("INSERT INTO seen(url, date, summary, title, feed_title) values(?,?,?,?,?)",
+		url, today, summary, title, feedTitle)
 	return err
 }
 
@@ -123,6 +129,44 @@ func (s *Storage) IsSeen(link string) (bool, bool, string) {
 	return isSeen, isSeenToday, summary.String
 }
 
+func (s *Storage) GetAllArticles() (map[string][]ArchivedItem, error) {
+	// Order by Date DESC, then by Feed Title so they group nicely
+	rows, err := s.db.Query("SELECT url, date, summary, IFNULL(title, ''), IFNULL(feed_title, '') FROM seen ORDER BY date DESC, feed_title ASC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	grouped := make(map[string][]ArchivedItem)
+
+	for rows.Next() {
+		var item ArchivedItem
+		var date, summary, title, feedTitle sql.NullString
+		if err := rows.Scan(&item.URL, &date, &summary, &title, &feedTitle); err != nil {
+			return nil, err
+		}
+
+		item.Date = date.String
+		item.Summary = summary.String
+		item.Title = title.String
+		item.FeedTitle = feedTitle.String
+
+		// Fallback for old records where title might be empty
+		if item.Title == "" {
+			item.Title = item.URL
+		}
+		if item.FeedTitle == "" {
+			item.FeedTitle = "Unknown Feed"
+		}
+		if item.Date == "" {
+			item.Date = "Unknown Date"
+		}
+
+		grouped[item.Date] = append(grouped[item.Date], item)
+	}
+	return grouped, nil
+}
+
 func (s *Storage) Close() {
 	s.db.Close()
 }
@@ -132,9 +176,9 @@ func (s *Storage) MarkFeedNotified(feed string) error {
 	today := time.Now().Format("2006-01-02")
 	// Upsert: insert or replace into notifications
 	_, err := s.db.Exec(`
-        INSERT INTO notifications(feed, date, notified) VALUES(?, ?, 1)
-        ON CONFLICT(feed, date) DO UPDATE SET notified = 1
-    `, feed, today)
+		INSERT INTO notifications(feed, date, notified) VALUES(?, ?, 1)
+		ON CONFLICT(feed, date) DO UPDATE SET notified = 1
+	`, feed, today)
 	return err
 }
 
@@ -148,4 +192,50 @@ func (s *Storage) WasFeedNotifiedToday(feed string) bool {
 		return false
 	}
 	return notified == 1
+}
+
+func (s *Storage) GetAllDays() ([]string, error) {
+	rows, err := s.db.Query(`
+		SELECT DISTINCT date
+		FROM seen
+		ORDER BY date ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var days []string
+	for rows.Next() {
+		var d string
+		if err := rows.Scan(&d); err == nil {
+			days = append(days, d)
+		}
+	}
+	return days, nil
+}
+
+func (s *Storage) GetArticlesForDay(day string) ([]SeenArticle, error) {
+	rows, err := s.db.Query(`
+		SELECT url, summary
+		FROM seen
+		WHERE date = ?
+	`, day)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var res []SeenArticle
+	for rows.Next() {
+		var a SeenArticle
+		rows.Scan(&a.URL, &a.Summary)
+		res = append(res, a)
+	}
+	return res, nil
+}
+
+type SeenArticle struct {
+	URL     string
+	Summary string
 }

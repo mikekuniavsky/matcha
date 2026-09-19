@@ -24,22 +24,36 @@ Matcha is a daily digest generator for your RSS feeds and interested topics/keyw
 
 <img width="596" alt="image" src="https://user-images.githubusercontent.com/3144671/208323296-af2d6a51-7d33-42a9-a827-0e96a4a383fd.png">
 
+### On the Web
+[Read more here how to setup the web version](https://github.com/piqoni/go-digest)
+
+<img width="1080" height="676" alt="image" src="https://github.com/user-attachments/assets/6bc348a2-803d-4ed4-9bd5-e896d850b672" />
+
 ## Features
  - RSS daily **digest**, it will show only articles not previously generated
- - Optional summary of articles from OpenAI for selected feeds
+ - Optional summary of articles from OpenAI/Local LLM models for selected feeds
  - Weather for the next 12 Hours (from [YR](https://www.yr.no/))
  - Quick bookmarking of articles to Instapaper
  - Interested Topics/Keywords to follow (through [Google News](https://news.google.com/))
  - Hacker News comments direct link and distinguishing mostly dicussed posts 🔥
  - Terminal Mode by calling `./matcha -t`
+ - LLM Notifications: get notified when your custom prompt is fulfilled (example: "Notify me when X company is sold")
+ - LLM Analyst: Performs an analysis of article titles and responds based on your prompt (example: "Tell me if you see any investment opportunity")
 
 
-## Installation / Usage
+## Installation & Usage
 1. Since Matcha generates markdown, any markdown reader should do the job. Currently it has been tested on [Obsidian](https://obsidian.md/) so you need a markdown reader before moving on, unless you will use terminal mode (-t option), then a markdown reader is not needed.
-2. **Download the [corresponding binary](https://github.com/piqoni/matcha/releases)** based on your OS and after executing (if on mac/linux run `chmod +x matcha-darwin-amd64` to make it executable), a sample `config.yml` will be generated, which you can add in your rss feeds, keywords and the `markdown_dir_path` where you want the markdown files to be generated (if left empty, it will generate the daily digest on current dir).
+2. **Download the [pre-built Matcha binary](https://github.com/piqoni/matcha/releases)** based on your OS and after executing (if on mac/linux run `chmod +x matcha-darwin-amd64` to make it executable), a sample `config.yml` will be generated, which you can add in your rss feeds, keywords and the `markdown_dir_path` where you want the markdown files to be generated (if left empty, it will generate the daily digest on current dir).
 3. You can either execute matcha on-demand (a terminal alias) or set a cron to run matcha as often as you want. Even if you set it to execute every hour, matcha will still generate daily digests, one file per day, and will add more articles to it if new articles are published throughout the day.
-
-Note to Go developers: You can also install matcha using `go install github.com/piqoni/matcha@latest`
+### Other ways to install
+#### Homebrew (macOS)
+```
+brew install matcha
+```
+#### Go devs
+```
+go install github.com/piqoni/matcha@latest
+```
 ## Configuration
 On first execution, Matcha will generate the following config.yaml and a markdown file on the same directory as the application. Change the 'feeds' to your actual RSS feeds, and google_news_keywords to the keywords you are interested in. And if you want to change where the markdown files are generated, set the full directory path in `markdown_dir_path`.
 
@@ -92,8 +106,15 @@ analyst_model: o1-preview
 ```
 #### Analyst Notifications
 The analyst feature supports notifications (Slack hooks or ntfy.sh). See a working example below:
-<img width="687" height="171" alt="image" src="https://github.com/user-attachments/assets/05cb6dd5-a36c-4d29-adbf-1640c049e7d0" />
-
+```yaml
+analyst_prompt: "Check the news titles below and if you see that airbus flights are returned to normal please respond with \"FLIGHTS BACK TO NORMAL\" and nothing else, no explanations."
+analyst_feeds:
+  - https://feeds.bbci.co.uk/news/business/rss.xml
+analyst_model: qwen3:4b
+openai_base_url: http://localhost: 11434/v1
+notification_trigger: "FLIGHTS BACK TO NORMAL"
+notification _webhook_url: https://ntfy.sh/myuniquetopic
+```
 ### Summarization of Articles using ChatGPT
 
 In order to use the summarization feature, you'll first need to set up an OpenAI account. If you haven't already done so, you can sign up [here](https://platform.openai.com/login?launch). Once registered, you'll need to acquire an OpenAI API key which can be found [here](https://platform.openai.com/account/api-keys).

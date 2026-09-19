@@ -66,6 +66,7 @@ type Config struct {
 	DatabaseFilePath       string
 	NotificationTrigger    string
 	NotificationWebhookURL string
+	GenerateAll            bool
 }
 
 type RSS struct {
@@ -81,6 +82,8 @@ func LoadConfig() (*Config, error) {
 	configFile := flag.String("c", "", "Config file path (if you want to override the current directory config.yaml)")
 	opmlFile := flag.String("o", "", "OPML file path to append feeds from opml files")
 	build := flag.Bool("build", false, "Dev: Build matcha binaries in the bin directory")
+	generateAll := flag.Bool("generate-all", false, "Generate markdown files for all days in the database")
+
 	flag.Parse()
 
 	if *build {
@@ -125,6 +128,7 @@ func LoadConfig() (*Config, error) {
 		DatabaseFilePath:       viper.GetString("database_file_path"),
 		NotificationTrigger:    viper.GetString("notification_trigger"),
 		NotificationWebhookURL: viper.GetString("notification_webhook_url"),
+		GenerateAll:            *generateAll,
 	}
 
 	if cfg.MarkdownDirPath == "" {

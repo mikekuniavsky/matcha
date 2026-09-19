@@ -16,12 +16,34 @@ type MarkdownWriter struct {
 	FilePath string
 }
 
-func NewMarkdownWriter(cfg *Config) *MarkdownWriter {
-	date := time.Now().Format("2006-01-02")
-	fname := cfg.MarkdownFilePrefix + date + cfg.MarkdownFileSuffix + ".md"
+func NewMarkdownWriter(cfg *Config, dateStr string) *MarkdownWriter {
+	if dateStr == "" {
+		dateStr = time.Now().Format("2006-01-02")
+	}
+	fname := cfg.MarkdownFilePrefix + dateStr + cfg.MarkdownFileSuffix + ".md"
 	return &MarkdownWriter{
 		FilePath: filepath.Join(cfg.MarkdownDirPath, fname),
 	}
+}
+
+func (w MarkdownWriter) WriteFeedHeaderRaw(title, articleURL string) string {
+	// Logic to reconstruct the Favicon HTML without a gofeed object
+	var src string
+	if strings.Contains(title, "Hacker News") {
+		src = "https://news.ycombinator.com/favicon.ico"
+	} else if articleURL == "" {
+		return fmt.Sprintf("\n### 🍵 %s\n", title)
+	} else {
+		u, err := url.Parse(articleURL)
+		if err != nil {
+			return fmt.Sprintf("\n### 🍵 %s\n", title)
+		}
+		// Google S2 Favicon service
+		src = "https://www.google.com/s2/favicons?sz=32&domain=" + u.Hostname()
+	}
+
+	faviconImg := fmt.Sprintf(`<img src="%s" width="32" height="32" />`, src)
+	return fmt.Sprintf("\n### %s %s\n", faviconImg, title)
 }
 
 func (w MarkdownWriter) Write(body string) {
@@ -42,9 +64,8 @@ func (w MarkdownWriter) WriteLink(title string, url string, newLine bool, readin
 	if readingTime != "" {
 		content += fmt.Sprintf(" (%s)", readingTime)
 	}
-
 	if newLine {
-		content += "  \n"
+		content += " \n"
 	}
 	return content
 }
@@ -53,16 +74,15 @@ func (w MarkdownWriter) WriteSummary(content string, newLine bool) string {
 	if content == "" {
 		return ""
 	}
-
 	if newLine {
-		content += "  \n\n"
+		content += " \n\n"
 	}
 	return content
 }
 
 func (w MarkdownWriter) WriteHeader(feed *gofeed.Feed) string {
 	favicon := w.getFaviconHTML(feed)
-	return fmt.Sprintf("\n### %s  %s\n", favicon, feed.Title)
+	return fmt.Sprintf("\n### %s %s\n", favicon, feed.Title)
 }
 
 // Helper method specifically for MarkdownWriter
