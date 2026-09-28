@@ -60,13 +60,13 @@ On first execution, Matcha will generate the following config.yaml and a markdow
 ```yaml
 markdown_dir_path:
 summary_feeds:
-  - https://export.arxiv.org/api/query?search_query=all:%22text-to-CAD%22+OR+all:%22image-to-CAD%22+OR+all:%22sketch-to-CAD%22+OR+all:%22CAD+generation%22+OR+all:%22CAD+code%22+OR+all:CadQuery+OR+all:OpenSCAD+OR+all:%22B-rep%22+OR+all:%22parametric+CAD%22&sortBy=submittedDate&sortOrder=descending&max_results=20 5
+  - https://export.arxiv.org/api/query?search_query=all:CadQuery+OR+all:Build123d+OR+all:%22text-to-CAD%22+OR+all:%22image-to-CAD%22+OR+all:%22sketch-to-CAD%22+OR+all:%22CAD+generation%22+OR+all:%22CAD+code%22+OR+all:%22CAD+modeling%22+OR+all:%22CAD+editing%22+OR+all:%22parametric+CAD%22+OR+all:%22B-rep%22+OR+all:OpenSCAD&sortBy=submittedDate&sortOrder=descending&max_results=20 5
 feeds:
-  - https://hnrss.org/newest?q=CadQuery+OR+OpenSCAD+OR+%22text-to-CAD%22+OR+%22AI+CAD%22 10
+  - https://hnrss.org/newest?q=CadQuery+OR+Build123d+OR+OpenSCAD+OR+%22text-to-CAD%22+OR+%22AI+CAD%22 10
   - https://hackaday.com/category/3d-printer-hacks/feed/ 10
   - https://www.reddit.com/r/OpenSCAD/.rss 10
   - https://www.reddit.com/r/cad/.rss 10
-google_news_keywords: text-to-CAD,AI CAD,generative CAD,CadQuery,OpenSCAD,parametric CAD
+google_news_keywords: CadQuery,Build123d,text-to-CAD,AI CAD,generative CAD,parametric CAD,OpenSCAD
 summarize_google_news: true
 instapaper: true
 weather_latitude: 37.77
@@ -85,8 +85,10 @@ paper_summary_prompt:
 mineru_url: http://localhost:8000
 show_images: false
 analyst_feeds:
-  - https://export.arxiv.org/api/query?search_query=all:CAD+OR+all:%22computer-aided+design%22+OR+all:%22parametric+modeling%22+OR+all:%22solid+modeling%22&sortBy=submittedDate&sortOrder=descending&max_results=20
-analyst_prompt: You are a research scout for an AI-assisted CAD product. From the provided articles, pick only those relevant to generating or editing 3D/CAD models with AI (text-to-CAD, image-to-CAD, CadQuery/OpenSCAD code generation, parametric modeling, mesh/B-rep generation, CAD datasets and benchmarks, LLM agents that drive CAD tools). For each pick, give a one-line takeaway and why it matters for a design-studio tool. If nothing is relevant, say so briefly.
+  - https://export.arxiv.org/api/query?search_query=all:CadQuery+OR+all:Build123d+OR+all:CAD+OR+all:%22computer-aided+design%22+OR+all:%22parametric+modeling%22+OR+all:%22solid+modeling%22&sortBy=submittedDate&sortOrder=descending&max_results=30 30
+analyst_prompt: You are a research scout for an AI-assisted CAD product that generates and edits parametric CAD as code (CadQuery, Build123d, OpenSCAD). From the numbered articles, pick only those relevant to generating, editing, verifying or repairing 3D/CAD models with AI, including text/image/sketch-to-CAD, CAD code generation, design-intent representations, constraint solving and verification loops, LLM agents that drive CAD kernels or tools, design for manufacturing, B-rep/mesh generation, CAD datasets and benchmarks. Ignore unrelated uses of the acronym CAD (e.g. computer-aided diagnosis). For each pick, give a one-line takeaway and why it matters for a design-studio tool. If nothing is relevant, say so briefly.
+analyst_read_papers: true
+analyst_max_papers: 3
 analyst_model:
 ```
 
@@ -108,6 +110,9 @@ Then the prompt is sent to the specified language model (analyst_model), and the
 
 Snippet of sample output (as an investment analyst):
 <img width="961" alt="image" src="https://github.com/user-attachments/assets/5ccb43d0-3057-4b39-b445-891246c9b644" />
+
+#### Analyst picks papers for full-text summaries
+With `analyst_read_papers: true`, the Analyst numbers the articles it sees and ends its answer with a `SELECTED:` line naming up to `analyst_max_papers` (default 3) worth reading in full. Matcha then parses each selected arXiv paper with MinerU (see "Paper summaries with MinerU"), summarizes it, and lists it under "Papers worth reading in full" right after the analysis. Selections are resolved by number against the articles actually sent, so the model can't pick a paper it wasn't shown. Non-arXiv picks stay in the analysis text only. Feeds in `analyst_feeds` accept the same `URL N` limit syntax as `feeds` (default 20).
 
 Default model is OpenAI's gpt-4o but to override model add configuration:
 ```

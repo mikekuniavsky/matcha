@@ -93,7 +93,7 @@ func (l *LLMClient) summarize(text, prompt, defaultPrompt string, maxCharacters 
 	return resp.Choices[0].Message.Content
 }
 
-func (l *LLMClient) Analyze(articles []string) string {
+func (l *LLMClient) Analyze(articles []string, promptSuffix string) string {
 	if l == nil || len(articles) == 0 {
 		return ""
 	}
@@ -103,7 +103,7 @@ func (l *LLMClient) Analyze(articles []string) string {
 		model = openai.GPT4o
 	}
 
-	prompt := fmt.Sprintf("%s\n\n%s", l.config.AnalystPrompt, strings.Join(articles, "\n"))
+	prompt := fmt.Sprintf("%s%s\n\n%s", l.config.AnalystPrompt, promptSuffix, strings.Join(articles, "\n"))
 
 	resp, err := l.client.CreateChatCompletion(
 		context.Background(),

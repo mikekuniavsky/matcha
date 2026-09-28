@@ -43,3 +43,20 @@ func TestMinerUParsePDF(t *testing.T) {
 		t.Fatalf("got %q, %v", md, err)
 	}
 }
+
+func TestSplitSelection(t *testing.T) {
+	items := []analystItem{{Title: "a"}, {Title: "b"}, {Title: "c"}, {Title: "d"}}
+	out, got := splitSelection("Pick b and d.\nSELECTED: 2, 4, 2, 9, 3", items, 3)
+	if out != "Pick b and d." {
+		t.Errorf("analysis = %q", out)
+	}
+	if len(got) != 3 || got[0].Title != "b" || got[1].Title != "d" || got[2].Title != "c" {
+		t.Errorf("picked = %+v", got)
+	}
+	if _, got := splitSelection("nothing\nSELECTED: none", items, 3); len(got) != 0 {
+		t.Errorf("none picked %+v", got)
+	}
+	if out, got := splitSelection("no marker", items, 3); out != "no marker" || got != nil {
+		t.Errorf("no marker: %q %v", out, got)
+	}
+}
