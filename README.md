@@ -60,7 +60,7 @@ On first execution, Matcha will generate the following config.yaml and a markdow
 ```yaml
 markdown_dir_path:
 summary_feeds:
-  - https://rss.arxiv.org/rss/cs.GR 5
+  - https://export.arxiv.org/api/query?search_query=all:%22text-to-CAD%22+OR+all:%22image-to-CAD%22+OR+all:%22sketch-to-CAD%22+OR+all:%22CAD+generation%22+OR+all:%22CAD+code%22+OR+all:CadQuery+OR+all:OpenSCAD+OR+all:%22B-rep%22+OR+all:%22parametric+CAD%22&sortBy=submittedDate&sortOrder=descending&max_results=20 5
 feeds:
   - https://hnrss.org/newest?q=CadQuery+OR+OpenSCAD+OR+%22text-to-CAD%22+OR+%22AI+CAD%22 10
   - https://hackaday.com/category/3d-printer-hacks/feed/ 10
@@ -85,8 +85,7 @@ paper_summary_prompt:
 mineru_url: http://localhost:8000
 show_images: false
 analyst_feeds:
-  - https://rss.arxiv.org/rss/cs.GR
-  - https://rss.arxiv.org/rss/cs.CV
+  - https://export.arxiv.org/api/query?search_query=all:CAD+OR+all:%22computer-aided+design%22+OR+all:%22parametric+modeling%22+OR+all:%22solid+modeling%22&sortBy=submittedDate&sortOrder=descending&max_results=20
 analyst_prompt: You are a research scout for an AI-assisted CAD product. From the provided articles, pick only those relevant to generating or editing 3D/CAD models with AI (text-to-CAD, image-to-CAD, CadQuery/OpenSCAD code generation, parametric modeling, mesh/B-rep generation, CAD datasets and benchmarks, LLM agents that drive CAD tools). For each pick, give a one-line takeaway and why it matters for a design-studio tool. If nothing is relevant, say so briefly.
 analyst_model:
 ```
@@ -94,7 +93,7 @@ analyst_model:
 ### Analyst LLM Feature
 The Analyst feature enables you to gather articles from specified feeds and analyze them using a prompt sent to a language model like GPT-4o (default). The result is included in the daily digest under an Analysis section. You write on your analyst_prompt setting what do you want the analyst to do on your behalf, for example picking relevant news to your liking (example: a cybersecurity expert interested only in certain type of attack), or having an investing analyst suggesting investment opportunities, etc. 
 
-The default config ships an AI CAD research scout (arXiv cs.GR / cs.CV). Another example, an analyst finding investment opportunities:
+The default config ships an AI CAD research scout. It reads a broad arXiv search (all categories, not just cs.GR/cs.CV) through arXiv's query API. The Analyst sees at most 20 items per feed (`defaultLimit`) and does no filtering itself, so the search query, not the category, is what narrows the input. Another example, an analyst finding investment opportunities:
 
 ```yaml
 openai_api_key: sk-xxxxxxxxxxxxxxxxx
