@@ -67,6 +67,7 @@ feeds:
   - https://www.reddit.com/r/OpenSCAD/.rss 10
   - https://www.reddit.com/r/cad/.rss 10
 google_news_keywords: text-to-CAD,AI CAD,generative CAD,CadQuery,OpenSCAD,parametric CAD
+summarize_google_news: true
 instapaper: true
 weather_latitude: 37.77
 weather_longitude: 122.41
@@ -124,6 +125,9 @@ openai_base_url: http://localhost: 11434/v1
 notification_trigger: "FLIGHTS BACK TO NORMAL"
 notification _webhook_url: https://ntfy.sh/myuniquetopic
 ```
+### Summaries for Google News stories
+With `summarize_google_news: true` (the default) and an LLM configured, each story from `google_news_keywords` is fetched and summarized like a `summary_feeds` item, instead of showing only the headline. Google News links are redirects; Matcha follows them to the publisher's page. If Google serves a consent/JavaScript page instead, or the publisher blocks the request or is paywalled, that story keeps just its headline and Matcha logs `Skipping summary for …`. Set it to `false` to go back to headlines only; the limit is 15 stories per run, so this is up to 15 LLM calls.
+
 ### Paper summaries with MinerU
 arXiv links in `summary_feeds` (the default config has `cs.GR`) are summarized from the **full paper**, not the abstract. Matcha downloads the PDF, sends it to a [MinerU](https://github.com/opendatalab/MinerU) API server (`mineru-api`, endpoint `POST /file_parse`), and feeds the resulting markdown (equations, tables and all) to the LLM with a CAD-oriented prompt.
 

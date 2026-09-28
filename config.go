@@ -23,6 +23,7 @@ feeds:
   - https://www.reddit.com/r/OpenSCAD/.rss 10
   - https://www.reddit.com/r/cad/.rss 10
 google_news_keywords: text-to-CAD,AI CAD,generative CAD,CadQuery,OpenSCAD,parametric CAD
+summarize_google_news: true
 instapaper: true
 weather_latitude: 37.77
 weather_longitude: 122.41
@@ -52,6 +53,7 @@ type Config struct {
 	MarkdownFileSuffix     string
 	Feeds                  []RSS
 	GoogleNewsKeywords     string
+	SummarizeGoogleNews    bool
 	Instapaper             bool
 	WeatherLat             float64
 	WeatherLon             float64
@@ -116,6 +118,7 @@ func LoadConfig() (*Config, error) {
 		MarkdownFilePrefix:     viper.GetString("markdown_file_prefix"),
 		MarkdownFileSuffix:     viper.GetString("markdown_file_suffix"),
 		GoogleNewsKeywords:     viper.GetString("google_news_keywords"),
+		SummarizeGoogleNews:    viper.GetBool("summarize_google_news"),
 		Instapaper:             viper.GetBool("instapaper"),
 		WeatherLat:             viper.GetFloat64("weather_latitude"),
 		WeatherLon:             viper.GetFloat64("weather_longitude"),
@@ -184,7 +187,7 @@ func loadFeeds(cfg *Config, flagOpml string) []RSS {
 	if cfg.GoogleNewsKeywords != "" {
 		escaped := url.QueryEscape(cfg.GoogleNewsKeywords)
 		googleNewsUrl := "https://news.google.com/rss/search?hl=en-US&gl=US&ceid=US%3Aen&oc=11&q=" + strings.Join(strings.Split(escaped, "%2C"), "%20%7C%20") // TODO
-		feeds = append(feeds, RSS{url: googleNewsUrl, limit: 15})                                                                                             // #FIXME make it configurable
+		feeds = append(feeds, RSS{url: googleNewsUrl, limit: 15, summarize: cfg.SummarizeGoogleNews})                                                         // #FIXME make it configurable
 	}
 
 	return feeds

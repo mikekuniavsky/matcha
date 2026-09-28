@@ -92,6 +92,14 @@ func getSummary(llm *LLMClient, item *gofeed.Item, cfg *Config) string {
 		if md := getPaperMarkdown(item.Link, cfg); md != "" {
 			return llm.SummarizePaper(md)
 		}
+		if isGoogleNewsLink(item.Link) {
+			text, err := googleNewsArticleText(item.Link)
+			if err != nil {
+				log.Printf("Skipping summary for %s: %v", item.Link, err)
+				return ""
+			}
+			return llm.Summarize(text)
+		}
 		scrapedText, err := readability.FromURL(item.Link, 30*time.Second)
 		content := item.Description
 		if err == nil {
