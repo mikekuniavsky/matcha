@@ -15,7 +15,7 @@
     </a>
 </div>
 
-Matcha is a daily digest generator for your RSS feeds and interested topics/keywords. By using any markdown file viewer (such as [Obsidian](https://obsidian.md/)) or directly from terminal (-t option), you can read your RSS articles whenever you want at your pace, thus avoiding FOMO throughout the day.
+Matcha is a daily digest generator for your RSS feeds and interested topics/keywords. This fork is tuned for **AI CAD**: text/image-to-CAD, CadQuery and OpenSCAD code generation, parametric modeling, and LLM agents that drive CAD tools. The default config follows those sources and keywords, and the Analyst screens new papers for relevance to an AI design-studio tool. By using any markdown file viewer (such as [Obsidian](https://obsidian.md/)) or directly from terminal (-t option), you can read your RSS articles whenever you want at your pace, thus avoiding FOMO throughout the day.
 
 ### In Obsidian
 <img width="900" alt="image" src="https://user-images.githubusercontent.com/3144671/219786799-55db70c1-5860-4d4b-9df4-b81a89f8161d.png">
@@ -60,12 +60,12 @@ On first execution, Matcha will generate the following config.yaml and a markdow
 ```yaml
 markdown_dir_path:
 feeds:
-  - http://hnrss.org/best 10
-  - https://waitbutwhy.com/feed
-  - http://tonsky.me/blog/atom.xml
-  - http://www.joelonsoftware.com/rss.xml
-  - https://www.youtube.com/feeds/videos.xml?channel_id=UCHnyfMqiRRG1u-2MsSQLbXA
-google_news_keywords: George Hotz,ChatGPT,Copenhagen
+  - https://hnrss.org/newest?q=CadQuery+OR+OpenSCAD+OR+%22text-to-CAD%22+OR+%22AI+CAD%22 10
+  - https://rss.arxiv.org/rss/cs.GR 15
+  - https://hackaday.com/category/3d-printer-hacks/feed/ 10
+  - https://www.reddit.com/r/OpenSCAD/.rss 10
+  - https://www.reddit.com/r/cad/.rss 10
+google_news_keywords: text-to-CAD,AI CAD,generative CAD,CadQuery,OpenSCAD,parametric CAD
 instapaper: true
 weather_latitude: 37.77
 weather_longitude: 122.41
@@ -79,12 +79,19 @@ openai_api_key:
 openai_base_url:
 openai_model:
 summary_feeds:
+summary_prompt:
+show_images: false
+analyst_feeds:
+  - https://rss.arxiv.org/rss/cs.GR
+  - https://rss.arxiv.org/rss/cs.CV
+analyst_prompt: You are a research scout for an AI-assisted CAD product. From the provided articles, pick only those relevant to generating or editing 3D/CAD models with AI (text-to-CAD, image-to-CAD, CadQuery/OpenSCAD code generation, parametric modeling, mesh/B-rep generation, CAD datasets and benchmarks, LLM agents that drive CAD tools). For each pick, give a one-line takeaway and why it matters for a design-studio tool. If nothing is relevant, say so briefly.
+analyst_model:
 ```
 
 ### Analyst LLM Feature
 The Analyst feature enables you to gather articles from specified feeds and analyze them using a prompt sent to a language model like GPT-4o (default). The result is included in the daily digest under an Analysis section. You write on your analyst_prompt setting what do you want the analyst to do on your behalf, for example picking relevant news to your liking (example: a cybersecurity expert interested only in certain type of attack), or having an investing analyst suggesting investment opportunities, etc. 
 
-Configuration Example of an analyst finding investment opportunities:
+The default config ships an AI CAD research scout (arXiv cs.GR / cs.CV). Another example, an analyst finding investment opportunities:
 
 ```yaml
 openai_api_key: sk-xxxxxxxxxxxxxxxxx

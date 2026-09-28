@@ -16,12 +16,12 @@ import (
 
 var config string = `markdown_dir_path:
 feeds:
-  - http://hnrss.org/best 10
-  - https://waitbutwhy.com/feed
-  - http://tonsky.me/blog/atom.xml
-  - http://www.joelonsoftware.com/rss.xml
-  - https://www.youtube.com/feeds/videos.xml?channel_id=UCHnyfMqiRRG1u-2MsSQLbXA
-google_news_keywords: George Hotz,ChatGPT,Copenhagen
+  - https://hnrss.org/newest?q=CadQuery+OR+OpenSCAD+OR+%22text-to-CAD%22+OR+%22AI+CAD%22 10
+  - https://rss.arxiv.org/rss/cs.GR 15
+  - https://hackaday.com/category/3d-printer-hacks/feed/ 10
+  - https://www.reddit.com/r/OpenSCAD/.rss 10
+  - https://www.reddit.com/r/cad/.rss 10
+google_news_keywords: text-to-CAD,AI CAD,generative CAD,CadQuery,OpenSCAD,parametric CAD
 instapaper: true
 weather_latitude: 37.77
 weather_longitude: 122.41
@@ -38,8 +38,9 @@ summary_feeds:
 summary_prompt:
 show_images: false
 analyst_feeds:
-  - https://feeds.bbci.co.uk/news/business/rss.xml
-analyst_prompt:
+  - https://rss.arxiv.org/rss/cs.GR
+  - https://rss.arxiv.org/rss/cs.CV
+analyst_prompt: You are a research scout for an AI-assisted CAD product. From the provided articles, pick only those relevant to generating or editing 3D/CAD models with AI (text-to-CAD, image-to-CAD, CadQuery/OpenSCAD code generation, parametric modeling, mesh/B-rep generation, CAD datasets and benchmarks, LLM agents that drive CAD tools). For each pick, give a one-line takeaway and why it matters for a design-studio tool. If nothing is relevant, say so briefly.
 analyst_model:
 `
 
