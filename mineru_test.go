@@ -60,3 +60,22 @@ func TestSplitSelection(t *testing.T) {
 		t.Errorf("no marker: %q %v", out, got)
 	}
 }
+
+func TestLinkCitations(t *testing.T) {
+	items := []analystItem{{Link: "https://a"}, {Link: "https://b"}}
+	got := linkCitations("See [2] and [1], not [7].", items)
+	want := "See [[2]](https://b) and [[1]](https://a), not [7]."
+	if got != want {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestUnwrapGoogleRedirect(t *testing.T) {
+	in := "https://www.google.com/url?rct=j&sa=t&url=https://example.com/post%3Fid%3D1&ct=ga&cd=abc"
+	if got := unwrapGoogleRedirect(in); got != "https://example.com/post?id=1" {
+		t.Errorf("got %q", got)
+	}
+	if got := unwrapGoogleRedirect("https://arxiv.org/abs/1"); got != "https://arxiv.org/abs/1" {
+		t.Errorf("changed non-google link: %q", got)
+	}
+}

@@ -32,9 +32,11 @@ func RunAnalyst(cfg *Config, store *Storage, llm *LLMClient, writer Writer, fp *
 	}
 
 	deepDive := cfg.AnalystReadPapers && cfg.AnalystMaxPapers > 0
+	// Notification prompts expect an exact reply, so leave them untouched.
+	numbered := deepDive || cfg.NotificationTrigger == ""
 	articles := make([]string, len(items))
 	for i, it := range items {
-		if deepDive {
+		if numbered {
 			articles[i] = fmt.Sprintf("[%d] %s: %s", i+1, it.Title, it.Description)
 		} else {
 			articles[i] = it.Title + ": " + it.Description
@@ -42,8 +44,11 @@ func RunAnalyst(cfg *Config, store *Storage, llm *LLMClient, writer Writer, fp *
 	}
 
 	suffix := ""
+	if numbered {
+		suffix = "\n\nThe articles below are numbered. Whenever you mention an article, cite it by its number in square brackets, like [3]."
+	}
 	if deepDive {
-		suffix = fmt.Sprintf("\n\nEach article below is numbered. After your analysis, add a final line of the form `SELECTED: 2, 5` listing the numbers of at most %d articles worth reading in full, or `SELECTED: none`.", cfg.AnalystMaxPapers)
+		suffix += fmt.Sprintf("\n\nAfter your analysis, add a final line of the form `SELECTED: 2, 5` listing the numbers of at most %d articles worth reading in full, or `SELECTED: none`.", cfg.AnalystMaxPapers)
 	}
 
 	analysis := llm.Analyze(articles, suffix)
@@ -51,6 +56,10 @@ func RunAnalyst(cfg *Config, store *Storage, llm *LLMClient, writer Writer, fp *
 	var selected []analystItem
 	if deepDive {
 		analysis, selected = splitSelection(analysis, items, cfg.AnalystMaxPapers)
+	}
+
+	if numbered {
+		analysis = linkCitations(analysis, items)
 	}
 
 	if analysis != "" {
@@ -107,6 +116,20 @@ func splitSelection(analysis string, items []analystItem, max int) (string, []an
 		}
 	}
 	return cleaned, picked
+}
+
+var citationRe = regexp.MustCompile(`\[(\d+)\]`)
+
+// linkCitations turns "[3]" citations into links to the 3rd article, so the analysis
+// keeps the URLs of the items it recommends. Out-of-range numbers are left as text.
+func linkCitations(analysis string, items []analystItem) string {
+	return citationRe.ReplaceAllStringFunc(analysis, func(m string) string {
+		n, err := strconv.Atoi(m[1 : len(m)-1])
+		if err != nil || n < 1 || n > len(items) || items[n-1].Link == "" {
+			return m
+		}
+		return "[" + m + "](" + items[n-1].Link + ")"
+	})
 }
 
 // writeSelectedPapers summarizes the Analyst's picks from full text (MinerU) and

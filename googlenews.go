@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -39,4 +40,21 @@ func googleNewsArticleText(link string) (string, error) {
 		return "", err
 	}
 	return article.TextContent, nil
+}
+
+// unwrapGoogleRedirect returns the publisher URL for Google Alerts links of the form
+// https://www.google.com/url?...&url=<publisher>&..., which carry the real target in
+// a query parameter (no scraping needed). Other links are returned unchanged.
+func unwrapGoogleRedirect(link string) string {
+	u, err := url.Parse(link)
+	if err != nil || !strings.HasSuffix(u.Host, "google.com") || u.Path != "/url" {
+		return link
+	}
+	q := u.Query()
+	for _, key := range []string{"url", "q"} {
+		if target := q.Get(key); strings.HasPrefix(target, "http") {
+			return target
+		}
+	}
+	return link
 }
