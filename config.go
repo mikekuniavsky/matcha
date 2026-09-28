@@ -15,9 +15,10 @@ import (
 )
 
 var config string = `markdown_dir_path:
+summary_feeds:
+  - https://rss.arxiv.org/rss/cs.GR 5
 feeds:
   - https://hnrss.org/newest?q=CadQuery+OR+OpenSCAD+OR+%22text-to-CAD%22+OR+%22AI+CAD%22 10
-  - https://rss.arxiv.org/rss/cs.GR 15
   - https://hackaday.com/category/3d-printer-hacks/feed/ 10
   - https://www.reddit.com/r/OpenSCAD/.rss 10
   - https://www.reddit.com/r/cad/.rss 10
@@ -34,8 +35,9 @@ sunrise_sunset: false
 openai_api_key:
 openai_base_url:
 openai_model:
-summary_feeds:
 summary_prompt:
+paper_summary_prompt:
+mineru_url: http://localhost:8000
 show_images: false
 analyst_feeds:
   - https://rss.arxiv.org/rss/cs.GR
@@ -61,6 +63,8 @@ type Config struct {
 	OpenAIBaseURL          string
 	OpenAIModel            string
 	SummaryPrompt          string
+	MinerUURL              string
+	PaperSummaryPrompt     string
 	AnalystFeeds           []string
 	AnalystPrompt          string
 	AnalystModel           string
@@ -123,6 +127,8 @@ func LoadConfig() (*Config, error) {
 		OpenAIBaseURL:          viper.GetString("openai_base_url"),
 		OpenAIModel:            viper.GetString("openai_model"),
 		SummaryPrompt:          viper.GetString("summary_prompt"),
+		MinerUURL:              viper.GetString("mineru_url"),
+		PaperSummaryPrompt:     viper.GetString("paper_summary_prompt"),
 		AnalystFeeds:           viper.GetStringSlice("analyst_feeds"),
 		AnalystPrompt:          viper.GetString("analyst_prompt"),
 		AnalystModel:           viper.GetString("analyst_model"),

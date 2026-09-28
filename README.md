@@ -59,9 +59,10 @@ On first execution, Matcha will generate the following config.yaml and a markdow
 
 ```yaml
 markdown_dir_path:
+summary_feeds:
+  - https://rss.arxiv.org/rss/cs.GR 5
 feeds:
   - https://hnrss.org/newest?q=CadQuery+OR+OpenSCAD+OR+%22text-to-CAD%22+OR+%22AI+CAD%22 10
-  - https://rss.arxiv.org/rss/cs.GR 15
   - https://hackaday.com/category/3d-printer-hacks/feed/ 10
   - https://www.reddit.com/r/OpenSCAD/.rss 10
   - https://www.reddit.com/r/cad/.rss 10
@@ -78,8 +79,9 @@ sunrise_sunset: false
 openai_api_key:
 openai_base_url:
 openai_model:
-summary_feeds:
 summary_prompt:
+paper_summary_prompt:
+mineru_url: http://localhost:8000
 show_images: false
 analyst_feeds:
   - https://rss.arxiv.org/rss/cs.GR
@@ -122,6 +124,17 @@ openai_base_url: http://localhost: 11434/v1
 notification_trigger: "FLIGHTS BACK TO NORMAL"
 notification _webhook_url: https://ntfy.sh/myuniquetopic
 ```
+### Paper summaries with MinerU
+arXiv links in `summary_feeds` (the default config has `cs.GR`) are summarized from the **full paper**, not the abstract. Matcha downloads the PDF, sends it to a [MinerU](https://github.com/opendatalab/MinerU) API server (`mineru-api`, endpoint `POST /file_parse`), and feeds the resulting markdown (equations, tables and all) to the LLM with a CAD-oriented prompt.
+
+```yaml
+mineru_url: http://localhost:8000   # leave empty to disable
+paper_summary_prompt:               # optional override
+openai_model: gpt-4o                # papers are long; use a large-context model
+```
+
+If MinerU is unreachable or fails, Matcha logs it and falls back to the normal article summary. Parsing can take minutes per paper on CPU, so keep the arXiv limit in `summary_feeds` small; results are cached in the database so each paper is parsed once. Non-arXiv links are unaffected.
+
 ### Summarization of Articles using ChatGPT
 
 In order to use the summarization feature, you'll first need to set up an OpenAI account. If you haven't already done so, you can sign up [here](https://platform.openai.com/login?launch). Once registered, you'll need to acquire an OpenAI API key which can be found [here](https://platform.openai.com/account/api-keys).
