@@ -15,7 +15,7 @@
     </a>
 </div>
 
-Matcha is a daily digest generator for your RSS feeds and interested topics/keywords. By using any markdown file viewer (such as [Obsidian](https://obsidian.md/)) or directly from terminal (-t option), you can read your RSS articles whenever you want at your pace, thus avoiding FOMO throughout the day.
+Matcha is a daily digest generator for your RSS feeds and interested topics/keywords. This fork is tuned for **AI CAD**: text/image-to-CAD, CadQuery and OpenSCAD code generation, parametric modeling, and LLM agents that drive CAD tools. The default config follows those sources and keywords, and the Analyst screens new papers for relevance to an AI design-studio tool. By using any markdown file viewer (such as [Obsidian](https://obsidian.md/)) or directly from terminal (-t option), you can read your RSS articles whenever you want at your pace, thus avoiding FOMO throughout the day.
 
 ### In Obsidian
 <img width="900" alt="image" src="https://user-images.githubusercontent.com/3144671/219786799-55db70c1-5860-4d4b-9df4-b81a89f8161d.png">
@@ -59,13 +59,15 @@ On first execution, Matcha will generate the following config.yaml and a markdow
 
 ```yaml
 markdown_dir_path:
+summary_feeds:
+  - https://export.arxiv.org/api/query?search_query=all:CadQuery+OR+all:Build123d+OR+all:%22text-to-CAD%22+OR+all:%22image-to-CAD%22+OR+all:%22sketch-to-CAD%22+OR+all:%22CAD+generation%22+OR+all:%22CAD+code%22+OR+all:%22CAD+modeling%22+OR+all:%22CAD+editing%22+OR+all:%22parametric+CAD%22+OR+all:%22B-rep%22+OR+all:OpenSCAD&sortBy=submittedDate&sortOrder=descending&max_results=20 5
 feeds:
-  - http://hnrss.org/best 10
-  - https://waitbutwhy.com/feed
-  - http://tonsky.me/blog/atom.xml
-  - http://www.joelonsoftware.com/rss.xml
-  - https://www.youtube.com/feeds/videos.xml?channel_id=UCHnyfMqiRRG1u-2MsSQLbXA
-google_news_keywords: George Hotz,ChatGPT,Copenhagen
+  - https://hnrss.org/newest?q=CadQuery+OR+Build123d+OR+OpenSCAD+OR+%22text-to-CAD%22+OR+%22AI+CAD%22 10
+  - https://hackaday.com/category/3d-printer-hacks/feed/ 10
+  - https://www.reddit.com/r/OpenSCAD/.rss 10
+  - https://www.reddit.com/r/cad/.rss 10
+google_news_keywords: CadQuery,Build123d,text-to-CAD,AI CAD,generative CAD,parametric CAD,OpenSCAD
+summarize_google_news: true
 instapaper: true
 weather_latitude: 37.77
 weather_longitude: 122.41
@@ -78,13 +80,23 @@ sunrise_sunset: false
 openai_api_key:
 openai_base_url:
 openai_model:
-summary_feeds:
+summary_prompt:
+paper_summary_prompt:
+mineru_url: http://localhost:8000
+mineru_tier:
+show_images: false
+analyst_feeds:
+  - https://export.arxiv.org/api/query?search_query=all:CadQuery+OR+all:Build123d+OR+all:CAD+OR+all:%22computer-aided+design%22+OR+all:%22parametric+modeling%22+OR+all:%22solid+modeling%22&sortBy=submittedDate&sortOrder=descending&max_results=30 30
+analyst_prompt: You are a research scout for an AI-assisted CAD product that generates and edits parametric CAD as code (CadQuery, Build123d, OpenSCAD). From the numbered articles, pick only those relevant to generating, editing, verifying or repairing 3D/CAD models with AI, including text/image/sketch-to-CAD, CAD code generation, design-intent representations, constraint solving and verification loops, LLM agents that drive CAD kernels or tools, design for manufacturing, B-rep/mesh generation, CAD datasets and benchmarks. Ignore unrelated uses of the acronym CAD (e.g. computer-aided diagnosis). For each pick, give a one-line takeaway and why it matters for a design-studio tool. If nothing is relevant, say so briefly.
+analyst_read_papers: true
+analyst_max_papers: 3
+analyst_model:
 ```
 
 ### Analyst LLM Feature
 The Analyst feature enables you to gather articles from specified feeds and analyze them using a prompt sent to a language model like GPT-4o (default). The result is included in the daily digest under an Analysis section. You write on your analyst_prompt setting what do you want the analyst to do on your behalf, for example picking relevant news to your liking (example: a cybersecurity expert interested only in certain type of attack), or having an investing analyst suggesting investment opportunities, etc. 
 
-Configuration Example of an analyst finding investment opportunities:
+The default config ships an AI CAD research scout. It reads a broad arXiv search (all categories, not just cs.GR/cs.CV) through arXiv's query API. The Analyst sees at most 20 items per feed (`defaultLimit`) and does no filtering itself, so the search query, not the category, is what narrows the input. Another example, an analyst finding investment opportunities:
 
 ```yaml
 openai_api_key: sk-xxxxxxxxxxxxxxxxx
@@ -99,6 +111,12 @@ Then the prompt is sent to the specified language model (analyst_model), and the
 
 Snippet of sample output (as an investment analyst):
 <img width="961" alt="image" src="https://github.com/user-attachments/assets/5ccb43d0-3057-4b39-b445-891246c9b644" />
+
+#### Analyst output format
+When the articles are numbered (the default, unless `notification_trigger` is set), Matcha appends a strict format to your `analyst_prompt`: one bullet per relevant article, written as `- [n] <takeaway>. Why it matters: <reason>.`, or `No relevant articles today.` Matcha then replaces each `[n]` with the article's real title as a bold link, so the Daily Analysis names every paper and links to it without trusting the model to copy titles or URLs. Keep your own prompt about *what* to pick; the format is handled for you.
+
+#### Analyst picks papers for full-text summaries
+With `analyst_read_papers: true`, the Analyst numbers the articles it sees and ends its answer with a `SELECTED:` line naming up to `analyst_max_papers` (default 3) worth reading in full. Matcha then parses each selected arXiv paper with MinerU (see "Paper summaries with MinerU"), summarizes it, and lists it under "Papers worth reading in full" right after the analysis. Selections are resolved by number against the articles actually sent, so the model can't pick a paper it wasn't shown. Non-arXiv picks stay in the analysis text only. Feeds in `analyst_feeds` accept the same `URL N` limit syntax as `feeds` (default 20).
 
 Default model is OpenAI's gpt-4o but to override model add configuration:
 ```
@@ -115,6 +133,27 @@ openai_base_url: http://localhost: 11434/v1
 notification_trigger: "FLIGHTS BACK TO NORMAL"
 notification _webhook_url: https://ntfy.sh/myuniquetopic
 ```
+### Summaries for Google News stories
+With `summarize_google_news: true` (the default) and an LLM configured, each story from `google_news_keywords` is summarized like a `summary_feeds` item, instead of showing only the headline. Google News links are encrypted tokens that no longer redirect, so Matcha asks Google's own web endpoint (the one news.google.com calls) for the publisher URL, then fetches and summarizes that page. That endpoint is undocumented and may change or rate-limit; when decoding fails, or the publisher blocks the request or is paywalled, the story keeps just its headline and Matcha logs `Skipping summary for …` with the reason. Set the option to `false` to go back to headlines only. The limit is 15 stories per run (up to 15 LLM calls).
+
+Google Alerts feeds (`https://www.google.com/alerts/feeds/...`) are more dependable: their links carry the publisher URL directly, so Matcha uses it without any decoding. Put them in `summary_feeds` to have them summarized.
+
+### Paper summaries with MinerU
+arXiv links in `summary_feeds` (and papers picked by the Analyst) are summarized from the **full paper**, not the abstract. Matcha sends the PDF to a [MinerU](https://github.com/opendatalab/MinerU) API server and feeds the resulting markdown to the LLM with a CAD-oriented prompt.
+
+```yaml
+mineru_url: http://localhost:8000   # leave empty to disable
+mineru_tier:                        # optional: flash, basic, standard or advanced
+paper_summary_prompt:               # optional override
+openai_model: gpt-4o                # papers are long; use a large-context model
+```
+
+Matcha supports two MinerU API generations and picks one by probing `GET /v1/health`:
+- **MinerU 3.x job API** (`/v1/parse/jobs`): Matcha creates a markdown job with the paper's PDF URL, polls it (up to 15 minutes), downloads the markdown, and deletes the output file. If the server can't fetch the URL itself, Matcha downloads the PDF and uploads it instead. Only one job runs at a time on a default server; a `429` is retried.
+- **Older `mineru-api`** (`POST /file_parse`): used when `/v1/health` isn't available.
+
+If MinerU is unreachable or fails, Matcha logs it and falls back to the abstract. Parsing can take minutes per paper on CPU, so keep arXiv limits small; summaries are cached in the database so each paper is parsed once. Non-arXiv links are unaffected.
+
 ### Summarization of Articles using ChatGPT
 
 In order to use the summarization feature, you'll first need to set up an OpenAI account. If you haven't already done so, you can sign up [here](https://platform.openai.com/login?launch). Once registered, you'll need to acquire an OpenAI API key which can be found [here](https://platform.openai.com/account/api-keys).

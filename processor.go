@@ -89,15 +89,46 @@ func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer,
 func getSummary(llm *LLMClient, item *gofeed.Item, cfg *Config) string {
 	fmt.Printf("Summarizing: %s\n", item.Link)
 	if llm != nil {
-		scrapedText, err := readability.FromURL(item.Link, 30*time.Second)
-		content := item.Description
-		if err == nil {
-			content = scrapedText.TextContent
+		if md := getPaperMarkdown(item.Link, cfg); md != "" {
+			return llm.SummarizePaper(md)
 		}
-		fmt.Println("we have crawled")
+		link := unwrapGoogleRedirect(item.Link) // Google Alerts feeds wrap the publisher URL
+		if isGoogleNewsLink(link) {
+			text, err := googleNewsArticleText(link)
+			if err != nil {
+				log.Printf("Skipping summary for %s: %v", item.Link, err)
+				return ""
+			}
+			fmt.Printf("  fetched %d characters of article text\n", len(text))
+			return llm.Summarize(text)
+		}
+		content := item.Description
+		if text, err := fetchArticleText(link); err == nil {
+			content = text
+			fmt.Printf("  fetched %d characters of article text\n", len(text))
+		} else {
+			log.Printf("Could not fetch %s, summarizing feed description instead: %v", link, err)
+		}
 		return llm.Summarize(content)
 	}
 	return item.Description
+}
+
+// getPaperMarkdown returns the full text of an arXiv paper parsed by MinerU,
+// or "" when MinerU isn't configured, the link isn't a paper, or parsing fails.
+func getPaperMarkdown(link string, cfg *Config) string {
+	mc := NewMinerUClient(cfg.MinerUURL, cfg.MinerUTier)
+	pdfURL, ok := arxivPDFURL(link)
+	if mc == nil || !ok {
+		return ""
+	}
+	fmt.Printf("Parsing paper with MinerU: %s\n", pdfURL)
+	md, err := mc.PDFToMarkdown(pdfURL)
+	if err != nil {
+		log.Printf("MinerU failed for %s, falling back to abstract: %v", link, err)
+		return ""
+	}
+	return md
 }
 
 func getReadingTime(link string) string {

@@ -15,13 +15,15 @@ import (
 )
 
 var config string = `markdown_dir_path:
+summary_feeds:
+  - https://export.arxiv.org/api/query?search_query=all:CadQuery+OR+all:Build123d+OR+all:%22text-to-CAD%22+OR+all:%22image-to-CAD%22+OR+all:%22sketch-to-CAD%22+OR+all:%22CAD+generation%22+OR+all:%22CAD+code%22+OR+all:%22CAD+modeling%22+OR+all:%22CAD+editing%22+OR+all:%22parametric+CAD%22+OR+all:%22B-rep%22+OR+all:OpenSCAD&sortBy=submittedDate&sortOrder=descending&max_results=20 5
 feeds:
-  - http://hnrss.org/best 10
-  - https://waitbutwhy.com/feed
-  - http://tonsky.me/blog/atom.xml
-  - http://www.joelonsoftware.com/rss.xml
-  - https://www.youtube.com/feeds/videos.xml?channel_id=UCHnyfMqiRRG1u-2MsSQLbXA
-google_news_keywords: George Hotz,ChatGPT,Copenhagen
+  - https://hnrss.org/newest?q=CadQuery+OR+Build123d+OR+OpenSCAD+OR+%22text-to-CAD%22+OR+%22AI+CAD%22 10
+  - https://hackaday.com/category/3d-printer-hacks/feed/ 10
+  - https://www.reddit.com/r/OpenSCAD/.rss 10
+  - https://www.reddit.com/r/cad/.rss 10
+google_news_keywords: CadQuery,Build123d,text-to-CAD,AI CAD,generative CAD,parametric CAD,OpenSCAD
+summarize_google_news: true
 instapaper: true
 weather_latitude: 37.77
 weather_longitude: 122.41
@@ -34,12 +36,16 @@ sunrise_sunset: false
 openai_api_key:
 openai_base_url:
 openai_model:
-summary_feeds:
 summary_prompt:
+paper_summary_prompt:
+mineru_url: http://localhost:8000
+mineru_tier:
 show_images: false
 analyst_feeds:
-  - https://feeds.bbci.co.uk/news/business/rss.xml
-analyst_prompt:
+  - https://export.arxiv.org/api/query?search_query=all:CadQuery+OR+all:Build123d+OR+all:CAD+OR+all:%22computer-aided+design%22+OR+all:%22parametric+modeling%22+OR+all:%22solid+modeling%22&sortBy=submittedDate&sortOrder=descending&max_results=30 30
+analyst_prompt: You are a research scout for an AI-assisted CAD product that generates and edits parametric CAD as code (CadQuery, Build123d, OpenSCAD). From the numbered articles, pick only those relevant to generating, editing, verifying or repairing 3D/CAD models with AI, including text/image/sketch-to-CAD, CAD code generation, design-intent representations, constraint solving and verification loops, LLM agents that drive CAD kernels or tools, design for manufacturing, B-rep/mesh generation, CAD datasets and benchmarks. Ignore unrelated uses of the acronym CAD (e.g. computer-aided diagnosis). For each pick, give a one-line takeaway and why it matters for a design-studio tool. If nothing is relevant, say so briefly.
+analyst_read_papers: true
+analyst_max_papers: 3
 analyst_model:
 `
 
@@ -49,6 +55,7 @@ type Config struct {
 	MarkdownFileSuffix     string
 	Feeds                  []RSS
 	GoogleNewsKeywords     string
+	SummarizeGoogleNews    bool
 	Instapaper             bool
 	WeatherLat             float64
 	WeatherLon             float64
@@ -60,9 +67,14 @@ type Config struct {
 	OpenAIBaseURL          string
 	OpenAIModel            string
 	SummaryPrompt          string
+	MinerUURL              string
+	MinerUTier             string
+	PaperSummaryPrompt     string
 	AnalystFeeds           []string
 	AnalystPrompt          string
 	AnalystModel           string
+	AnalystReadPapers      bool
+	AnalystMaxPapers       int
 	DatabaseFilePath       string
 	NotificationTrigger    string
 	NotificationWebhookURL string
@@ -77,6 +89,7 @@ type RSS struct {
 
 func LoadConfig() (*Config, error) {
 	viper.SetDefault("limit", 20)
+	viper.SetDefault("analyst_max_papers", 3)
 
 	terminalMode := flag.Bool("t", false, "Run Matcha in Terminal Mode, no markdown files will be created")
 	configFile := flag.String("c", "", "Config file path (if you want to override the current directory config.yaml)")
@@ -111,6 +124,7 @@ func LoadConfig() (*Config, error) {
 		MarkdownFilePrefix:     viper.GetString("markdown_file_prefix"),
 		MarkdownFileSuffix:     viper.GetString("markdown_file_suffix"),
 		GoogleNewsKeywords:     viper.GetString("google_news_keywords"),
+		SummarizeGoogleNews:    viper.GetBool("summarize_google_news"),
 		Instapaper:             viper.GetBool("instapaper"),
 		WeatherLat:             viper.GetFloat64("weather_latitude"),
 		WeatherLon:             viper.GetFloat64("weather_longitude"),
@@ -122,9 +136,14 @@ func LoadConfig() (*Config, error) {
 		OpenAIBaseURL:          viper.GetString("openai_base_url"),
 		OpenAIModel:            viper.GetString("openai_model"),
 		SummaryPrompt:          viper.GetString("summary_prompt"),
+		MinerUURL:              viper.GetString("mineru_url"),
+		MinerUTier:             viper.GetString("mineru_tier"),
+		PaperSummaryPrompt:     viper.GetString("paper_summary_prompt"),
 		AnalystFeeds:           viper.GetStringSlice("analyst_feeds"),
 		AnalystPrompt:          viper.GetString("analyst_prompt"),
 		AnalystModel:           viper.GetString("analyst_model"),
+		AnalystReadPapers:      viper.GetBool("analyst_read_papers"),
+		AnalystMaxPapers:       viper.GetInt("analyst_max_papers"),
 		DatabaseFilePath:       viper.GetString("database_file_path"),
 		NotificationTrigger:    viper.GetString("notification_trigger"),
 		NotificationWebhookURL: viper.GetString("notification_webhook_url"),
@@ -177,7 +196,7 @@ func loadFeeds(cfg *Config, flagOpml string) []RSS {
 	if cfg.GoogleNewsKeywords != "" {
 		escaped := url.QueryEscape(cfg.GoogleNewsKeywords)
 		googleNewsUrl := "https://news.google.com/rss/search?hl=en-US&gl=US&ceid=US%3Aen&oc=11&q=" + strings.Join(strings.Split(escaped, "%2C"), "%20%7C%20") // TODO
-		feeds = append(feeds, RSS{url: googleNewsUrl, limit: 15})                                                                                             // #FIXME make it configurable
+		feeds = append(feeds, RSS{url: googleNewsUrl, limit: 15, summarize: cfg.SummarizeGoogleNews})                                                         // #FIXME make it configurable
 	}
 
 	return feeds
