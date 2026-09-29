@@ -99,15 +99,16 @@ func getSummary(llm *LLMClient, item *gofeed.Item, cfg *Config) string {
 				log.Printf("Skipping summary for %s: %v", item.Link, err)
 				return ""
 			}
+			fmt.Printf("  fetched %d characters of article text\n", len(text))
 			return llm.Summarize(text)
 		}
 		content := item.Description
 		if text, err := fetchArticleText(link); err == nil {
 			content = text
+			fmt.Printf("  fetched %d characters of article text\n", len(text))
 		} else {
 			log.Printf("Could not fetch %s, summarizing feed description instead: %v", link, err)
 		}
-		fmt.Println("we have crawled")
 		return llm.Summarize(content)
 	}
 	return item.Description

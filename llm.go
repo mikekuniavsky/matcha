@@ -39,7 +39,6 @@ func (l *LLMClient) SummarizePaper(markdown string) string {
 const defaultSummaryPrompt = "Summarize the following news article concisely in plain language, covering the who, what, when, where, why, and how, and keep the summary under 150 words; use bullet points to make visual scanning easier:"
 
 func (l *LLMClient) summarize(text, prompt, defaultPrompt string, maxCharacters int, defaultModel string) string {
-	fmt.Println("summarize invoked")
 	if l == nil || l.client == nil {
 		return ""
 	}
@@ -52,6 +51,7 @@ func (l *LLMClient) summarize(text, prompt, defaultPrompt string, maxCharacters 
 
 	// Don't summarize if the article is too short
 	if len(text) < minCharactersToSummarize {
+		fmt.Printf("  no summary: only %d characters of text (minimum %d)\n", len(text), minCharactersToSummarize)
 		return ""
 	}
 
@@ -82,14 +82,16 @@ func (l *LLMClient) summarize(text, prompt, defaultPrompt string, maxCharacters 
 	)
 
 	if err != nil {
-		fmt.Printf("Summarization error: %v\n", err)
+		fmt.Printf("  no summary: model %q returned an error: %v\n", model, err)
 		return ""
 	}
 
-	if len(resp.Choices) == 0 {
+	if len(resp.Choices) == 0 || strings.TrimSpace(resp.Choices[0].Message.Content) == "" {
+		fmt.Printf("  no summary: model %q returned an empty reply (sent %d characters)\n", model, len(text))
 		return ""
 	}
 
+	fmt.Printf("  summarized %d characters with %q -> %d characters\n", len(text), model, len(resp.Choices[0].Message.Content))
 	return resp.Choices[0].Message.Content
 }
 
