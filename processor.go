@@ -117,7 +117,7 @@ func getSummary(llm *LLMClient, item *gofeed.Item, cfg *Config) string {
 // getPaperMarkdown returns the full text of an arXiv paper parsed by MinerU,
 // or "" when MinerU isn't configured, the link isn't a paper, or parsing fails.
 func getPaperMarkdown(link string, cfg *Config) string {
-	mc := NewMinerUClient(cfg.MinerUURL)
+	mc := NewMinerUClient(cfg.MinerUURL, cfg.MinerUTier)
 	pdfURL, ok := arxivPDFURL(link)
 	if mc == nil || !ok {
 		return ""

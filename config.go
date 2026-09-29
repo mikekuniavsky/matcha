@@ -39,6 +39,7 @@ openai_model:
 summary_prompt:
 paper_summary_prompt:
 mineru_url: http://localhost:8000
+mineru_tier:
 show_images: false
 analyst_feeds:
   - https://export.arxiv.org/api/query?search_query=all:CadQuery+OR+all:Build123d+OR+all:CAD+OR+all:%22computer-aided+design%22+OR+all:%22parametric+modeling%22+OR+all:%22solid+modeling%22&sortBy=submittedDate&sortOrder=descending&max_results=30 30
@@ -67,6 +68,7 @@ type Config struct {
 	OpenAIModel            string
 	SummaryPrompt          string
 	MinerUURL              string
+	MinerUTier             string
 	PaperSummaryPrompt     string
 	AnalystFeeds           []string
 	AnalystPrompt          string
@@ -135,6 +137,7 @@ func LoadConfig() (*Config, error) {
 		OpenAIModel:            viper.GetString("openai_model"),
 		SummaryPrompt:          viper.GetString("summary_prompt"),
 		MinerUURL:              viper.GetString("mineru_url"),
+		MinerUTier:             viper.GetString("mineru_tier"),
 		PaperSummaryPrompt:     viper.GetString("paper_summary_prompt"),
 		AnalystFeeds:           viper.GetStringSlice("analyst_feeds"),
 		AnalystPrompt:          viper.GetString("analyst_prompt"),

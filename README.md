@@ -83,6 +83,7 @@ openai_model:
 summary_prompt:
 paper_summary_prompt:
 mineru_url: http://localhost:8000
+mineru_tier:
 show_images: false
 analyst_feeds:
   - https://export.arxiv.org/api/query?search_query=all:CadQuery+OR+all:Build123d+OR+all:CAD+OR+all:%22computer-aided+design%22+OR+all:%22parametric+modeling%22+OR+all:%22solid+modeling%22&sortBy=submittedDate&sortOrder=descending&max_results=30 30
@@ -135,15 +136,20 @@ With `summarize_google_news: true` (the default) and an LLM configured, each sto
 Google Alerts feeds (`https://www.google.com/alerts/feeds/...`) are more dependable: their links carry the publisher URL directly, so Matcha uses it without any decoding. Put them in `summary_feeds` to have them summarized.
 
 ### Paper summaries with MinerU
-arXiv links in `summary_feeds` (the default config has `cs.GR`) are summarized from the **full paper**, not the abstract. Matcha downloads the PDF, sends it to a [MinerU](https://github.com/opendatalab/MinerU) API server (`mineru-api`, endpoint `POST /file_parse`), and feeds the resulting markdown (equations, tables and all) to the LLM with a CAD-oriented prompt.
+arXiv links in `summary_feeds` (and papers picked by the Analyst) are summarized from the **full paper**, not the abstract. Matcha sends the PDF to a [MinerU](https://github.com/opendatalab/MinerU) API server and feeds the resulting markdown to the LLM with a CAD-oriented prompt.
 
 ```yaml
 mineru_url: http://localhost:8000   # leave empty to disable
+mineru_tier:                        # optional: flash, basic, standard or advanced
 paper_summary_prompt:               # optional override
 openai_model: gpt-4o                # papers are long; use a large-context model
 ```
 
-If MinerU is unreachable or fails, Matcha logs it and falls back to the normal article summary. Parsing can take minutes per paper on CPU, so keep the arXiv limit in `summary_feeds` small; results are cached in the database so each paper is parsed once. Non-arXiv links are unaffected.
+Matcha supports two MinerU API generations and picks one by probing `GET /v1/health`:
+- **MinerU 3.x job API** (`/v1/parse/jobs`): Matcha creates a markdown job with the paper's PDF URL, polls it (up to 15 minutes), downloads the markdown, and deletes the output file. If the server can't fetch the URL itself, Matcha downloads the PDF and uploads it instead. Only one job runs at a time on a default server; a `429` is retried.
+- **Older `mineru-api`** (`POST /file_parse`): used when `/v1/health` isn't available.
+
+If MinerU is unreachable or fails, Matcha logs it and falls back to the abstract. Parsing can take minutes per paper on CPU, so keep arXiv limits small; summaries are cached in the database so each paper is parsed once. Non-arXiv links are unaffected.
 
 ### Summarization of Articles using ChatGPT
 
