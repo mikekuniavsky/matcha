@@ -45,7 +45,7 @@ func RunAnalyst(cfg *Config, store *Storage, llm *LLMClient, writer Writer, fp *
 
 	suffix := ""
 	if numbered {
-		suffix = "\n\nThe articles below are numbered. Whenever you mention an article, cite it by its number in square brackets, like [3]."
+		suffix = "\n\nThe articles below are numbered. Reply in exactly this format and nothing else: one bullet per relevant article, written as `- [n] <one-line takeaway>. Why it matters: <one sentence>.` where n is the article's number (never write the title yourself). If no article is relevant, reply only `No relevant articles today.`"
 	}
 	if deepDive {
 		suffix += fmt.Sprintf("\n\nAfter your analysis, add a final line of the form `SELECTED: 2, 5` listing the numbers of at most %d articles worth reading in full, or `SELECTED: none`.", cfg.AnalystMaxPapers)
@@ -119,16 +119,29 @@ func splitSelection(analysis string, items []analystItem, max int) (string, []an
 }
 
 var citationRe = regexp.MustCompile(`\[(\d+)\]`)
+var spaceRe = regexp.MustCompile(`\s+`)
 
-// linkCitations turns "[3]" citations into links to the 3rd article, so the analysis
-// keeps the URLs of the items it recommends. Out-of-range numbers are left as text.
+// citationTitle returns a single-line, markdown-safe title for a feed item.
+func citationTitle(title string) string {
+	t := spaceRe.ReplaceAllString(stripHtmlRegex(title), " ")
+	t = strings.NewReplacer("[", "(", "]", ")").Replace(strings.TrimSpace(t))
+	return t
+}
+
+// linkCitations turns "[3]" citations into a bold link showing the 3rd article's real
+// title, so the analysis names each paper and keeps its URL without trusting the model
+// to copy either. Out-of-range numbers are left as text.
 func linkCitations(analysis string, items []analystItem) string {
 	return citationRe.ReplaceAllStringFunc(analysis, func(m string) string {
 		n, err := strconv.Atoi(m[1 : len(m)-1])
 		if err != nil || n < 1 || n > len(items) || items[n-1].Link == "" {
 			return m
 		}
-		return "[" + m + "](" + items[n-1].Link + ")"
+		title := citationTitle(items[n-1].Title)
+		if title == "" {
+			title = m
+		}
+		return "**[" + title + "](" + items[n-1].Link + ")**"
 	})
 }
 

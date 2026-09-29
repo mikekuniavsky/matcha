@@ -145,11 +145,14 @@ func TestSplitSelection(t *testing.T) {
 }
 
 func TestLinkCitations(t *testing.T) {
-	items := []analystItem{{Link: "https://a"}, {Link: "https://b"}}
-	got := linkCitations("See [2] and [1], not [7].", items)
-	want := "See [[2]](https://b) and [[1]](https://a), not [7]."
+	items := []analystItem{
+		{Title: "Text2CAD:\n  Generating [CAD] <b>Models</b>", Link: "https://a"},
+		{Title: "ReliCAD", Link: "https://b"},
+	}
+	got := linkCitations("- [2] Reliable loop. Why: x.\n- [1] Also. [7]", items)
+	want := "- **[ReliCAD](https://b)** Reliable loop. Why: x.\n- **[Text2CAD: Generating (CAD) Models](https://a)** Also. [7]"
 	if got != want {
-		t.Errorf("got %q", got)
+		t.Errorf("got  %q\nwant %q", got, want)
 	}
 }
 
