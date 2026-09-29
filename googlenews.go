@@ -9,8 +9,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-
-	readability "github.com/go-shiori/go-readability"
 )
 
 // Overridable in tests.
@@ -134,11 +132,11 @@ func googleNewsArticleText(link string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("decode google news link: %w", err)
 	}
-	article, err := readability.FromURL(target, 30*time.Second)
+	text, err := fetchArticleText(target)
 	if err != nil {
 		return "", fmt.Errorf("fetch %s: %w", target, err)
 	}
-	return article.TextContent, nil
+	return text, nil
 }
 
 // unwrapGoogleRedirect returns the publisher URL for Google Alerts links of the form

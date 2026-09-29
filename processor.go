@@ -101,10 +101,11 @@ func getSummary(llm *LLMClient, item *gofeed.Item, cfg *Config) string {
 			}
 			return llm.Summarize(text)
 		}
-		scrapedText, err := readability.FromURL(link, 30*time.Second)
 		content := item.Description
-		if err == nil {
-			content = scrapedText.TextContent
+		if text, err := fetchArticleText(link); err == nil {
+			content = text
+		} else {
+			log.Printf("Could not fetch %s, summarizing feed description instead: %v", link, err)
 		}
 		fmt.Println("we have crawled")
 		return llm.Summarize(content)
