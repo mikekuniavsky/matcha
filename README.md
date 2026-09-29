@@ -130,7 +130,9 @@ notification_trigger: "FLIGHTS BACK TO NORMAL"
 notification _webhook_url: https://ntfy.sh/myuniquetopic
 ```
 ### Summaries for Google News stories
-With `summarize_google_news: true` (the default) and an LLM configured, each story from `google_news_keywords` is fetched and summarized like a `summary_feeds` item, instead of showing only the headline. Google News links are redirects; Matcha follows them to the publisher's page. If Google serves a consent/JavaScript page instead, or the publisher blocks the request or is paywalled, that story keeps just its headline and Matcha logs `Skipping summary for …`. Set it to `false` to go back to headlines only; the limit is 15 stories per run, so this is up to 15 LLM calls.
+With `summarize_google_news: true` (the default) and an LLM configured, each story from `google_news_keywords` is summarized like a `summary_feeds` item, instead of showing only the headline. Google News links are encrypted tokens that no longer redirect, so Matcha asks Google's own web endpoint (the one news.google.com calls) for the publisher URL, then fetches and summarizes that page. That endpoint is undocumented and may change or rate-limit; when decoding fails, or the publisher blocks the request or is paywalled, the story keeps just its headline and Matcha logs `Skipping summary for …` with the reason. Set the option to `false` to go back to headlines only. The limit is 15 stories per run (up to 15 LLM calls).
+
+Google Alerts feeds (`https://www.google.com/alerts/feeds/...`) are more dependable: their links carry the publisher URL directly, so Matcha uses it without any decoding. Put them in `summary_feeds` to have them summarized.
 
 ### Paper summaries with MinerU
 arXiv links in `summary_feeds` (the default config has `cs.GR`) are summarized from the **full paper**, not the abstract. Matcha downloads the PDF, sends it to a [MinerU](https://github.com/opendatalab/MinerU) API server (`mineru-api`, endpoint `POST /file_parse`), and feeds the resulting markdown (equations, tables and all) to the LLM with a CAD-oriented prompt.
