@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -179,6 +180,7 @@ func collectArticlesForAnalysis(cfg *Config, store *Storage, fp *gofeed.Parser) 
 		feedURL, limit := getFeedAndLimit(feedSpec)
 		feed, err := fp.ParseURL(feedURL)
 		if err != nil {
+			log.Printf("Analyst: error parsing %s: %v", feedURL, err)
 			continue
 		}
 
