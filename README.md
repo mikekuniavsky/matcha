@@ -60,7 +60,34 @@ On first execution, Matcha will generate the following config.yaml and a markdow
 ```yaml
 markdown_dir_path:
 summary_feeds:
-  - https://export.arxiv.org/api/query?search_query=all:CadQuery+OR+all:Build123d+OR+all:%22text-to-CAD%22+OR+all:%22image-to-CAD%22+OR+all:%22sketch-to-CAD%22+OR+all:%22CAD+generation%22+OR+all:%22CAD+code%22+OR+all:%22CAD+modeling%22+OR+all:%22CAD+editing%22+OR+all:%22parametric+CAD%22+OR+all:%22B-rep%22+OR+all:OpenSCAD&sortBy=submittedDate&sortOrder=descending&max_results=20 5
+analyst_feeds:
+arxiv_searches:
+  - name: CAD tools and generation   # precise; every hit is parsed in full
+    use: summary                     # summary | analyst | feed
+    limit: 5
+    terms:
+      - CadQuery
+      - Build123d
+      - text-to-CAD
+      - image-to-CAD
+      - sketch-to-CAD
+      - CAD generation
+      - CAD code
+      - CAD modeling
+      - CAD editing
+      - parametric CAD
+      - B-rep
+      - OpenSCAD
+  - name: Broad CAD scan             # noisy; the Analyst screens it
+    use: analyst
+    limit: 30
+    terms:
+      - CadQuery
+      - Build123d
+      - CAD
+      - computer-aided design
+      - parametric modeling
+      - solid modeling
 feeds:
   - https://hnrss.org/newest?q=CadQuery+OR+Build123d+OR+OpenSCAD+OR+%22text-to-CAD%22+OR+%22AI+CAD%22 10
   - https://hackaday.com/category/3d-printer-hacks/feed/ 10
@@ -85,18 +112,38 @@ paper_summary_prompt:
 mineru_url: http://localhost:8000
 mineru_tier:
 show_images: false
-analyst_feeds:
-  - https://export.arxiv.org/api/query?search_query=all:CadQuery+OR+all:Build123d+OR+all:CAD+OR+all:%22computer-aided+design%22+OR+all:%22parametric+modeling%22+OR+all:%22solid+modeling%22&sortBy=submittedDate&sortOrder=descending&max_results=30 30
 analyst_prompt: You are a research scout for an AI-assisted CAD product that generates and edits parametric CAD as code (CadQuery, Build123d, OpenSCAD). From the numbered articles, pick only those relevant to generating, editing, verifying or repairing 3D/CAD models with AI, including text/image/sketch-to-CAD, CAD code generation, design-intent representations, constraint solving and verification loops, LLM agents that drive CAD kernels or tools, design for manufacturing, B-rep/mesh generation, CAD datasets and benchmarks. Ignore unrelated uses of the acronym CAD (e.g. computer-aided diagnosis). For each pick, give a one-line takeaway and why it matters for a design-studio tool. If nothing is relevant, say so briefly.
 analyst_read_papers: true
 analyst_max_papers: 3
 analyst_model:
 ```
 
+### arXiv searches
+Instead of hand-writing arXiv's URL-encoded `search_query`, list plain terms under `arxiv_searches`. Matcha builds the query-API feed for you:
+
+```yaml
+arxiv_searches:
+  - name: Robotics CAD            # label for warnings only
+    use: analyst                  # summary | analyst | feed
+    limit: 30                     # newest N results kept
+    field: all                    # optional: all (default) | ti | abs
+    terms:                        # match ANY term; multi-word and hyphenated terms become phrases
+      - CadQuery
+      - text-to-CAD
+      - CAD generation
+    categories: [cs.RO, cs.AI]    # optional: also require one of these categories (cs.* works)
+    exclude:                      # optional: drop results matching any of these
+      - computer-aided diagnosis
+```
+
+- `use: summary` adds it like `summary_feeds` (each hit is parsed in full with MinerU and summarized; default limit 5). `use: analyst` adds it to the Analyst's input (cheap screening of titles and abstracts; default 30). `use: feed` lists links only (default 20).
+- Results are always newest-first. Bad entries (unknown `use`/`field`, no terms, malformed category) are skipped with a warning in the output.
+- Raw feed URLs still work in `feeds`, `summary_feeds` and `analyst_feeds`; `arxiv_searches` entries are added to them.
+
 ### Analyst LLM Feature
 The Analyst feature enables you to gather articles from specified feeds and analyze them using a prompt sent to a language model like GPT-4o (default). The result is included in the daily digest under an Analysis section. You write on your analyst_prompt setting what do you want the analyst to do on your behalf, for example picking relevant news to your liking (example: a cybersecurity expert interested only in certain type of attack), or having an investing analyst suggesting investment opportunities, etc. 
 
-The default config ships an AI CAD research scout. It reads a broad arXiv search (all categories, not just cs.GR/cs.CV) through arXiv's query API. The Analyst sees at most 20 items per feed (`defaultLimit`) and does no filtering itself, so the search query, not the category, is what narrows the input. Another example, an analyst finding investment opportunities:
+The default config ships an AI CAD research scout. It reads a broad arXiv search (all categories, not just cs.GR/cs.CV) defined under `arxiv_searches`. The Analyst sees at most 20 items per feed (`defaultLimit`) and does no filtering itself, so the search query, not the category, is what narrows the input. Another example, an analyst finding investment opportunities:
 
 ```yaml
 openai_api_key: sk-xxxxxxxxxxxxxxxxx
