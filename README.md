@@ -93,6 +93,21 @@ analyst_max_papers: 3
 analyst_model:
 ```
 
+### `summary_feeds` vs `analyst_feeds`
+Both use an LLM, but they do different jobs. (The config key is `summary_feeds`, not `summarize_feeds`.)
+
+| | `summary_feeds` | `analyst_feeds` |
+|---|---|---|
+| **Purpose** | Read each article for you | Screen a batch of articles and tell you which matter |
+| **Appears in the digest as** | The feed's articles, each with its own LLM summary | A single "Daily Analysis" section; the feed's articles are not listed separately |
+| **LLM input** | One article per call: the full page (or, for arXiv, the full paper via MinerU) | One call for the whole batch: only titles and RSS descriptions |
+| **Prompt** | `summary_prompt` / `paper_summary_prompt` | `analyst_prompt` (you write what to look for) |
+| **Model** | `openai_model` | `analyst_model` (defaults to gpt-4o) |
+| **Cost** | Up to one LLM call per article (keep limits small) | One call per run, plus full-paper summaries for up to `analyst_max_papers` picks |
+| **Best for** | Feeds you want condensed, such as a few high-signal sources | Noisy or high-volume feeds you want triaged, or alerts (`notification_trigger`) |
+
+Both accept the same `URL N` limit syntax. The two can share a source: the default config summarizes a narrow arXiv query in `summary_feeds` and has the Analyst scan a broader one, then promote its picks to full-paper summaries (`analyst_read_papers`). Plain `feeds` are neither: they are listed with headlines only.
+
 ### Analyst LLM Feature
 The Analyst feature enables you to gather articles from specified feeds and analyze them using a prompt sent to a language model like GPT-4o (default). The result is included in the daily digest under an Analysis section. You write on your analyst_prompt setting what do you want the analyst to do on your behalf, for example picking relevant news to your liking (example: a cybersecurity expert interested only in certain type of attack), or having an investing analyst suggesting investment opportunities, etc. 
 
