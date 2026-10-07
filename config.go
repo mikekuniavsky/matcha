@@ -16,7 +16,34 @@ import (
 
 var config string = `markdown_dir_path:
 summary_feeds:
-  - https://export.arxiv.org/api/query?search_query=all:CadQuery+OR+all:Build123d+OR+all:%22text-to-CAD%22+OR+all:%22image-to-CAD%22+OR+all:%22sketch-to-CAD%22+OR+all:%22CAD+generation%22+OR+all:%22CAD+code%22+OR+all:%22CAD+modeling%22+OR+all:%22CAD+editing%22+OR+all:%22parametric+CAD%22+OR+all:%22B-rep%22+OR+all:OpenSCAD&sortBy=submittedDate&sortOrder=descending&max_results=20 5
+analyst_feeds:
+arxiv_searches:
+  - name: CAD tools and generation   # precise; every hit is parsed in full
+    use: summary                     # summary | analyst | feed
+    limit: 5
+    terms:
+      - CadQuery
+      - Build123d
+      - text-to-CAD
+      - image-to-CAD
+      - sketch-to-CAD
+      - CAD generation
+      - CAD code
+      - CAD modeling
+      - CAD editing
+      - parametric CAD
+      - B-rep
+      - OpenSCAD
+  - name: Broad CAD scan             # noisy; the Analyst screens it
+    use: analyst
+    limit: 30
+    terms:
+      - CadQuery
+      - Build123d
+      - CAD
+      - computer-aided design
+      - parametric modeling
+      - solid modeling
 feeds:
   - https://hnrss.org/newest?q=CadQuery+OR+Build123d+OR+OpenSCAD+OR+%22text-to-CAD%22+OR+%22AI+CAD%22 10
   - https://hackaday.com/category/3d-printer-hacks/feed/ 10
@@ -41,8 +68,6 @@ paper_summary_prompt:
 mineru_url: http://localhost:8000
 mineru_tier:
 show_images: false
-analyst_feeds:
-  - https://export.arxiv.org/api/query?search_query=all:CadQuery+OR+all:Build123d+OR+all:CAD+OR+all:%22computer-aided+design%22+OR+all:%22parametric+modeling%22+OR+all:%22solid+modeling%22&sortBy=submittedDate&sortOrder=descending&max_results=30 30
 analyst_prompt: You are a research scout for an AI-assisted CAD product that generates and edits parametric CAD as code (CadQuery, Build123d, OpenSCAD). From the numbered articles, pick only those relevant to generating, editing, verifying or repairing 3D/CAD models with AI, including text/image/sketch-to-CAD, CAD code generation, design-intent representations, constraint solving and verification loops, LLM agents that drive CAD kernels or tools, design for manufacturing, B-rep/mesh generation, CAD datasets and benchmarks. Ignore unrelated uses of the acronym CAD (e.g. computer-aided diagnosis). For each pick, give a one-line takeaway and why it matters for a design-studio tool. If nothing is relevant, say so briefly.
 analyst_read_papers: true
 analyst_max_papers: 3
@@ -159,6 +184,9 @@ func LoadConfig() (*Config, error) {
 	}
 
 	cfg.Feeds = loadFeeds(cfg, *opmlFile)
+	arxivFeeds, arxivAnalyst := loadArxivSearches()
+	cfg.Feeds = append(cfg.Feeds, arxivFeeds...)
+	cfg.AnalystFeeds = append(cfg.AnalystFeeds, arxivAnalyst...)
 
 	return cfg, nil
 }

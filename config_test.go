@@ -14,14 +14,16 @@ func TestDefaultConfigParses(t *testing.T) {
 	if err := v.ReadConfig(strings.NewReader(config)); err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"summary_feeds", "feeds", "analyst_feeds"} {
-		if len(v.GetStringSlice(key)) == 0 {
-			t.Errorf("%s is empty", key)
-		}
+	if len(v.GetStringSlice("feeds")) == 0 {
+		t.Error("feeds is empty")
 	}
-	for _, f := range v.GetStringSlice("summary_feeds") {
-		if u, _ := getFeedAndLimit(f); !strings.HasPrefix(u, "https://export.arxiv.org/api/query?") {
-			t.Errorf("unexpected summary feed %q", f)
+	var searches []ArxivSearch
+	if err := v.UnmarshalKey("arxiv_searches", &searches); err != nil || len(searches) != 2 {
+		t.Fatalf("arxiv_searches: %v (%d entries)", err, len(searches))
+	}
+	for _, s := range searches {
+		if u, err := buildArxivQuery(s); err != nil || !strings.HasPrefix(u, "https://export.arxiv.org/api/query?search_query=") {
+			t.Errorf("search %q: %q, %v", s.Name, u, err)
 		}
 	}
 	if !v.GetBool("analyst_read_papers") || !strings.Contains(v.GetString("analyst_prompt"), "Build123d") {

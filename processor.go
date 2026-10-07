@@ -28,6 +28,7 @@ func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer,
 
 	var outputBuffer string
 	itemsFound := false
+	total, alreadySeen := len(feed.Items), 0
 
 	for _, item := range feed.Items {
 		// Check DB for seen status
@@ -35,6 +36,7 @@ func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer,
 
 		// If we've seen it before (and not today), skip it
 		if seen {
+			alreadySeen++
 			continue
 		}
 
@@ -79,6 +81,8 @@ func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer,
 			store.MarkAsSeen(item.Link, summary, item.Title, feed.Title, feed.FeedLink)
 		}
 	}
+
+	fmt.Printf("Feed %q: %d items read, %d already seen on earlier days, %d new\n", feed.Title, total, alreadySeen, total-alreadySeen)
 
 	if itemsFound && outputBuffer != "" {
 		header := w.WriteHeader(feed)
