@@ -36,3 +36,18 @@ func TestExtractCodeLinks(t *testing.T) {
 		t.Errorf("max not honored: %v", got)
 	}
 }
+
+func TestDedupeKey(t *testing.T) {
+	a := dedupeKey("https://arxiv.org/abs/2610.12202v1")
+	for _, same := range []string{"http://arxiv.org/abs/2610.12202v2", "https://arxiv.org/pdf/2610.12202", "https://arxiv.org/abs/2610.12202"} {
+		if dedupeKey(same) != a {
+			t.Errorf("%s keyed differently from %s", same, a)
+		}
+	}
+	if dedupeKey("https://arxiv.org/abs/2610.99999v1") == a {
+		t.Error("different papers share a key")
+	}
+	if dedupeKey("https://example.com/post") != "https://example.com/post" {
+		t.Error("non-arXiv link changed")
+	}
+}

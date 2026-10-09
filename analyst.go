@@ -165,6 +165,7 @@ func writeSelectedPapers(cfg *Config, store *Storage, llm *LLMClient, w Writer, 
 				_ = store.MarkAsSeen(it.Link, summary, it.Title, it.FeedTitle, it.FeedURL)
 			}
 		}
+		shownThisRun[dedupeKey(it.Link)] = true
 		out += w.WriteLink(it.Title, it.Link, true, "") + w.WriteSummary(summary, true)
 	}
 	if out != "" {

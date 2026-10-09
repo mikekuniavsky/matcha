@@ -15,6 +15,46 @@ import (
 	"github.com/mmcdole/gofeed"
 )
 
+// shownThisRun holds the dedupe keys of items already written to this digest, so a paper
+// the Analyst summarized (or another feed already listed) isn't printed a second time.
+var shownThisRun = map[string]bool{}
+
+var arxivVersionRe = regexp.MustCompile(`v\d+$`)
+
+// dedupeKey identifies an item across feeds; arXiv links ignore the version suffix.
+func dedupeKey(link string) string {
+	if m := arxivIDRe.FindStringSubmatch(link); m != nil {
+		return "arxiv:" + arxivVersionRe.ReplaceAllString(m[1], "")
+	}
+	return link
+}
+
+// findSimilarStories clusters the titles of the feed's not-yet-shown items and returns,
+// for each later duplicate, the title of the first story in its cluster.
+func findSimilarStories(items []*gofeed.Item, store *Storage) map[string]string {
+	var cands []*gofeed.Item
+	for _, it := range items {
+		if shownThisRun[dedupeKey(it.Link)] {
+			continue
+		}
+		if seen, _, _ := store.IsSeen(it.Link); seen {
+			continue // shown on an earlier day: not part of today's output
+		}
+		cands = append(cands, it)
+	}
+	titles := make([]string, len(cands))
+	for i, it := range cands {
+		titles[i] = it.Title
+	}
+	dup := map[string]string{}
+	for i, r := range clusterSimilarTitles(titles) {
+		if r != i {
+			dup[cands[i].Link] = cands[r].Title
+		}
+	}
+	return dup
+}
+
 func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer, fp *gofeed.Parser) {
 	feed, err := fp.ParseURL(rss.url)
 	if err != nil {
@@ -28,9 +68,20 @@ func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer,
 
 	var outputBuffer string
 	itemsFound := false
-	total, alreadySeen := len(feed.Items), 0
+	total, alreadySeen, shownAbove, similar := len(feed.Items), 0, 0, 0
+
+	// Near-duplicate stories (the same news from several outlets) are summarized once.
+	var similarTo map[string]string // item link -> title of the story it duplicates
+	if rss.summarize && cfg.ClusterSimilarStories {
+		similarTo = findSimilarStories(feed.Items, store)
+	}
 
 	for _, item := range feed.Items {
+		if shownThisRun[dedupeKey(item.Link)] {
+			shownAbove++
+			continue
+		}
+
 		// Check DB for seen status
 		seen, seenToday, prevSummary := store.IsSeen(item.Link)
 
@@ -41,13 +92,15 @@ func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer,
 		}
 
 		itemsFound = true
+		shownThisRun[dedupeKey(item.Link)] = true
 		title := item.Title
 		if title == "" {
 			title = stripHtmlRegex(item.Description)
 		}
 
 		summary := prevSummary
-		if summary == "" && rss.summarize {
+		repTitle, isSimilar := similarTo[item.Link]
+		if summary == "" && rss.summarize && !isSimilar {
 			summary = getSummary(llm, item, cfg)
 		}
 
@@ -67,7 +120,12 @@ func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer,
 		outputBuffer += w.WriteLink(title, item.Link, true, readingTime)
 
 		if rss.summarize {
-			outputBuffer += w.WriteSummary(summary, true)
+			if isSimilar && summary == "" {
+				similar++
+				outputBuffer += w.WriteSummary("↳ Same story as: "+citationTitle(repTitle), true)
+			} else {
+				outputBuffer += w.WriteSummary(summary, true)
+			}
 		}
 
 		if cfg.ShowImages && !cfg.TerminalMode {
@@ -82,7 +140,7 @@ func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer,
 		}
 	}
 
-	fmt.Printf("Feed %q: %d items read, %d already seen on earlier days, %d new\n", feed.Title, total, alreadySeen, total-alreadySeen)
+	fmt.Printf("Feed %q: %d items read, %d already seen on earlier days, %d already shown above in this digest, %d new (%d similar to another story, not summarized)\n", feed.Title, total, alreadySeen, shownAbove, total-alreadySeen-shownAbove, similar)
 
 	if itemsFound && outputBuffer != "" {
 		header := w.WriteHeader(feed)
