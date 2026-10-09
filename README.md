@@ -214,6 +214,8 @@ Matcha supports two MinerU API generations and picks one by probing `GET /v1/hea
 - **MinerU 3.x job API** (`/v1/parse/jobs`): Matcha creates a markdown job with the paper's PDF URL, polls it (up to 15 minutes), downloads the markdown, and deletes the output file. If the server can't fetch the URL itself, Matcha downloads the PDF and uploads it instead. Only one job runs at a time on a default server; a `429` is retried.
 - **Older `mineru-api`** (`POST /file_parse`): used when `/v1/health` isn't available.
 
+Before summarizing, Matcha drops the references, acknowledgments and appendices (everything from a `References`/`Appendix`-style heading in the second half of the paper) so the character budget goes to the body and results. It also collects any GitHub, GitLab, Hugging Face, Zenodo and similar links from the body and lists them under the summary as `Code/data:`.
+
 If MinerU is unreachable or fails, Matcha logs it and falls back to the abstract. Parsing can take minutes per paper on CPU, so keep arXiv limits small; summaries are cached in the database so each paper is parsed once. Non-arXiv links are unaffected.
 
 ### Summarization of Articles using ChatGPT

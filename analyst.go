@@ -160,7 +160,7 @@ func writeSelectedPapers(cfg *Config, store *Storage, llm *LLMClient, w Writer, 
 			if text == "" {
 				text = it.Description // MinerU unavailable: fall back to the abstract
 			}
-			summary = llm.SummarizePaper(text)
+			summary = summarizePaperText(llm, text)
 			if summary != "" && !seen {
 				_ = store.MarkAsSeen(it.Link, summary, it.Title, it.FeedTitle, it.FeedURL)
 			}
