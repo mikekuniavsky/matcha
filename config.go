@@ -51,6 +51,7 @@ feeds:
   - https://www.reddit.com/r/cad/.rss 10
 google_news_keywords: CadQuery,Build123d,text-to-CAD,AI CAD,generative CAD,parametric CAD,OpenSCAD
 summarize_google_news: true
+cluster_similar_stories: true
 instapaper: true
 weather_latitude: 37.77
 weather_longitude: 122.41
@@ -81,6 +82,7 @@ type Config struct {
 	Feeds                  []RSS
 	GoogleNewsKeywords     string
 	SummarizeGoogleNews    bool
+	ClusterSimilarStories  bool
 	Instapaper             bool
 	WeatherLat             float64
 	WeatherLon             float64
@@ -114,6 +116,7 @@ type RSS struct {
 
 func LoadConfig() (*Config, error) {
 	viper.SetDefault("limit", 20)
+	viper.SetDefault("cluster_similar_stories", true)
 	viper.SetDefault("analyst_max_papers", 3)
 
 	terminalMode := flag.Bool("t", false, "Run Matcha in Terminal Mode, no markdown files will be created")
@@ -150,6 +153,7 @@ func LoadConfig() (*Config, error) {
 		MarkdownFileSuffix:     viper.GetString("markdown_file_suffix"),
 		GoogleNewsKeywords:     viper.GetString("google_news_keywords"),
 		SummarizeGoogleNews:    viper.GetBool("summarize_google_news"),
+		ClusterSimilarStories:  viper.GetBool("cluster_similar_stories"),
 		Instapaper:             viper.GetBool("instapaper"),
 		WeatherLat:             viper.GetFloat64("weather_latitude"),
 		WeatherLon:             viper.GetFloat64("weather_longitude"),

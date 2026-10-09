@@ -29,6 +29,32 @@ func dedupeKey(link string) string {
 	return link
 }
 
+// findSimilarStories clusters the titles of the feed's not-yet-shown items and returns,
+// for each later duplicate, the title of the first story in its cluster.
+func findSimilarStories(items []*gofeed.Item, store *Storage) map[string]string {
+	var cands []*gofeed.Item
+	for _, it := range items {
+		if shownThisRun[dedupeKey(it.Link)] {
+			continue
+		}
+		if seen, _, _ := store.IsSeen(it.Link); seen {
+			continue // shown on an earlier day: not part of today's output
+		}
+		cands = append(cands, it)
+	}
+	titles := make([]string, len(cands))
+	for i, it := range cands {
+		titles[i] = it.Title
+	}
+	dup := map[string]string{}
+	for i, r := range clusterSimilarTitles(titles) {
+		if r != i {
+			dup[cands[i].Link] = cands[r].Title
+		}
+	}
+	return dup
+}
+
 func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer, fp *gofeed.Parser) {
 	feed, err := fp.ParseURL(rss.url)
 	if err != nil {
@@ -42,7 +68,13 @@ func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer,
 
 	var outputBuffer string
 	itemsFound := false
-	total, alreadySeen, shownAbove := len(feed.Items), 0, 0
+	total, alreadySeen, shownAbove, similar := len(feed.Items), 0, 0, 0
+
+	// Near-duplicate stories (the same news from several outlets) are summarized once.
+	var similarTo map[string]string // item link -> title of the story it duplicates
+	if rss.summarize && cfg.ClusterSimilarStories {
+		similarTo = findSimilarStories(feed.Items, store)
+	}
 
 	for _, item := range feed.Items {
 		if shownThisRun[dedupeKey(item.Link)] {
@@ -67,7 +99,8 @@ func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer,
 		}
 
 		summary := prevSummary
-		if summary == "" && rss.summarize {
+		repTitle, isSimilar := similarTo[item.Link]
+		if summary == "" && rss.summarize && !isSimilar {
 			summary = getSummary(llm, item, cfg)
 		}
 
@@ -87,7 +120,12 @@ func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer,
 		outputBuffer += w.WriteLink(title, item.Link, true, readingTime)
 
 		if rss.summarize {
-			outputBuffer += w.WriteSummary(summary, true)
+			if isSimilar && summary == "" {
+				similar++
+				outputBuffer += w.WriteSummary("↳ Same story as: "+citationTitle(repTitle), true)
+			} else {
+				outputBuffer += w.WriteSummary(summary, true)
+			}
 		}
 
 		if cfg.ShowImages && !cfg.TerminalMode {
@@ -102,7 +140,7 @@ func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer,
 		}
 	}
 
-	fmt.Printf("Feed %q: %d items read, %d already seen on earlier days, %d already shown above in this digest, %d new\n", feed.Title, total, alreadySeen, shownAbove, total-alreadySeen-shownAbove)
+	fmt.Printf("Feed %q: %d items read, %d already seen on earlier days, %d already shown above in this digest, %d new (%d similar to another story, not summarized)\n", feed.Title, total, alreadySeen, shownAbove, total-alreadySeen-shownAbove, similar)
 
 	if itemsFound && outputBuffer != "" {
 		header := w.WriteHeader(feed)
