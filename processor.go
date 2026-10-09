@@ -94,7 +94,7 @@ func getSummary(llm *LLMClient, item *gofeed.Item, cfg *Config) string {
 	fmt.Printf("Summarizing: %s\n", item.Link)
 	if llm != nil {
 		if md := getPaperMarkdown(item.Link, cfg); md != "" {
-			return llm.SummarizePaper(md)
+			return summarizePaperText(llm, md)
 		}
 		link := unwrapGoogleRedirect(item.Link) // Google Alerts feeds wrap the publisher URL
 		if isGoogleNewsLink(link) {
