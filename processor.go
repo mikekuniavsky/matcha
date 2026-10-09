@@ -15,6 +15,20 @@ import (
 	"github.com/mmcdole/gofeed"
 )
 
+// shownThisRun holds the dedupe keys of items already written to this digest, so a paper
+// the Analyst summarized (or another feed already listed) isn't printed a second time.
+var shownThisRun = map[string]bool{}
+
+var arxivVersionRe = regexp.MustCompile(`v\d+$`)
+
+// dedupeKey identifies an item across feeds; arXiv links ignore the version suffix.
+func dedupeKey(link string) string {
+	if m := arxivIDRe.FindStringSubmatch(link); m != nil {
+		return "arxiv:" + arxivVersionRe.ReplaceAllString(m[1], "")
+	}
+	return link
+}
+
 func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer, fp *gofeed.Parser) {
 	feed, err := fp.ParseURL(rss.url)
 	if err != nil {
@@ -28,9 +42,14 @@ func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer,
 
 	var outputBuffer string
 	itemsFound := false
-	total, alreadySeen := len(feed.Items), 0
+	total, alreadySeen, shownAbove := len(feed.Items), 0, 0
 
 	for _, item := range feed.Items {
+		if shownThisRun[dedupeKey(item.Link)] {
+			shownAbove++
+			continue
+		}
+
 		// Check DB for seen status
 		seen, seenToday, prevSummary := store.IsSeen(item.Link)
 
@@ -41,6 +60,7 @@ func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer,
 		}
 
 		itemsFound = true
+		shownThisRun[dedupeKey(item.Link)] = true
 		title := item.Title
 		if title == "" {
 			title = stripHtmlRegex(item.Description)
@@ -82,7 +102,7 @@ func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer,
 		}
 	}
 
-	fmt.Printf("Feed %q: %d items read, %d already seen on earlier days, %d new\n", feed.Title, total, alreadySeen, total-alreadySeen)
+	fmt.Printf("Feed %q: %d items read, %d already seen on earlier days, %d already shown above in this digest, %d new\n", feed.Title, total, alreadySeen, shownAbove, total-alreadySeen-shownAbove)
 
 	if itemsFound && outputBuffer != "" {
 		header := w.WriteHeader(feed)
