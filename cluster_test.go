@@ -91,7 +91,7 @@ func (c *captureWriter) WriteSummary(content string, nl bool) string {
 	}
 	return "SUM{" + content + "}\n"
 }
-func (c *captureWriter) WriteHeader(feed *gofeed.Feed) string { return "HEADER\n" }
+func (c *captureWriter) WriteHeader(feed *gofeed.Feed) string { return "HEADER[" + feed.Title + "]\n" }
 
 // Two outlets covering one story and one unrelated story: the duplicate is listed but
 // not summarized, and the unrelated story keeps its own summary.
