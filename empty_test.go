@@ -97,3 +97,33 @@ func TestAnalystNoNewArticlesNote(t *testing.T) {
 		t.Errorf("unexpected analyst output:\n%s", w.out)
 	}
 }
+
+func TestSectionWithResultsSaysWhatWasSkipped(t *testing.T) {
+	srv := feedServer(t, `<?xml version="1.0"?><rss version="2.0"><channel><title>Mixed</title><link>https://m.example</link>
+<item><title>Fresh story</title><link>https://m.example/new</link></item><item><title>Old story</title><link>https://m.example/old</link></item></channel></rss>`)
+	store := testStore(t)
+	if _, err := store.db.Exec("INSERT INTO seen(url, date, summary, title, feed_title) values(?,?,?,?,?)", "https://m.example/old", "2000-01-01", "", "t", "Mixed"); err != nil {
+		t.Fatal(err)
+	}
+	out := runFeed(t, RSS{url: srv.URL, limit: 10}, &Config{ShowEmptySections: true}, store)
+	if !strings.Contains(out, "LINK[Fresh story]") || strings.Contains(out, "Old story") {
+		t.Errorf("wrong items listed:\n%s", out)
+	}
+	if !strings.Contains(out, "_Not shown again: 1 already seen on earlier days_") {
+		t.Errorf("missing skipped-items footnote:\n%s", out)
+	}
+}
+
+func TestBuildGoogleNewsQuery(t *testing.T) {
+	for in, want := range map[string]string{
+		"CadQuery,OpenSCAD":                               "CadQuery | OpenSCAD",
+		"George Hotz, ChatGPT ,Copenhagen":                "George Hotz | ChatGPT | Copenhagen",
+		`"text-to-CAD","AI CAD", -loonie -forex -USD/CAD`: `("text-to-CAD" | "AI CAD") -loonie -forex -USD/CAD`,
+		"OpenSCAD,-forex":                                 "OpenSCAD -forex",
+		"":                                                "",
+	} {
+		if got := buildGoogleNewsQuery(in); got != want {
+			t.Errorf("buildGoogleNewsQuery(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

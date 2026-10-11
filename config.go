@@ -231,12 +231,38 @@ func loadFeeds(cfg *Config, flagOpml string) []RSS {
 	}
 
 	if cfg.GoogleNewsKeywords != "" {
-		escaped := url.QueryEscape(cfg.GoogleNewsKeywords)
-		googleNewsUrl := "https://news.google.com/rss/search?hl=en-US&gl=US&ceid=US%3Aen&oc=11&q=" + strings.Join(strings.Split(escaped, "%2C"), "%20%7C%20") // TODO
-		feeds = append(feeds, RSS{url: googleNewsUrl, limit: 15, summarize: cfg.SummarizeGoogleNews})                                                         // #FIXME make it configurable
+		googleNewsUrl := "https://news.google.com/rss/search?hl=en-US&gl=US&ceid=US%3Aen&oc=11&q=" + url.QueryEscape(buildGoogleNewsQuery(cfg.GoogleNewsKeywords))
+		feeds = append(feeds, RSS{url: googleNewsUrl, limit: 15, summarize: cfg.SummarizeGoogleNews}) // #FIXME make it configurable
 	}
 
 	return feeds
+}
+
+// buildGoogleNewsQuery turns the comma-separated google_news_keywords into a search query:
+// the terms are OR-ed together, and anything starting with "-" (for example
+// "-loonie -forex") is an exclusion applied to the whole search, not another OR branch:
+//
+//	"text-to-CAD", CadQuery, -forex  ->  ("text-to-CAD" | CadQuery) -forex
+func buildGoogleNewsQuery(keywords string) string {
+	var include, exclude []string
+	for _, part := range strings.Split(keywords, ",") {
+		part = strings.TrimSpace(part)
+		switch {
+		case part == "":
+		case strings.HasPrefix(part, "-"):
+			exclude = append(exclude, strings.Fields(part)...)
+		default:
+			include = append(include, part)
+		}
+	}
+	q := strings.Join(include, " | ")
+	if len(exclude) > 0 {
+		if len(include) > 1 {
+			q = "(" + q + ")"
+		}
+		q = strings.TrimSpace(q + " " + strings.Join(exclude, " "))
+	}
+	return q
 }
 
 func getDefaultDBPath() string {

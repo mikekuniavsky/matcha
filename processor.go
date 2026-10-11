@@ -82,6 +82,11 @@ func emptyFeedNote(feedURL string, total, alreadySeen, shownAbove int) string {
 		}
 		return note
 	}
+	return fmt.Sprintf("_No new items: %d read, %s._", total, strings.TrimPrefix(skippedNote(alreadySeen, shownAbove), "Not shown again: "))
+}
+
+// skippedNote says how many of a feed's items were left out because they were already listed.
+func skippedNote(alreadySeen, shownAbove int) string {
 	var parts []string
 	if alreadySeen > 0 {
 		parts = append(parts, fmt.Sprintf("%d already seen on earlier days", alreadySeen))
@@ -89,7 +94,7 @@ func emptyFeedNote(feedURL string, total, alreadySeen, shownAbove int) string {
 	if shownAbove > 0 {
 		parts = append(parts, fmt.Sprintf("%d already shown above in this digest", shownAbove))
 	}
-	return fmt.Sprintf("_No new items: %d read, %s._", total, strings.Join(parts, ", "))
+	return "Not shown again: " + strings.Join(parts, ", ")
 }
 
 func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer, fp *gofeed.Parser) {
@@ -187,6 +192,9 @@ func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer,
 
 	if itemsFound && outputBuffer != "" {
 		header := w.WriteHeader(feed)
+		if cfg.ShowEmptySections && alreadySeen+shownAbove > 0 {
+			outputBuffer += w.WriteSummary("_"+skippedNote(alreadySeen, shownAbove)+"_", true)
+		}
 		w.Write(header + outputBuffer)
 	} else if cfg.ShowEmptySections {
 		w.Write(w.WriteHeader(feed) + w.WriteSummary(emptyFeedNote(rss.url, total, alreadySeen, shownAbove), true))
