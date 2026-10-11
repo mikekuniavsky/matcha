@@ -202,12 +202,22 @@ With `summarize_google_news: true` (the default) and an LLM configured, each sto
 
 Google Alerts feeds (`https://www.google.com/alerts/feeds/...`) are more dependable: their links carry the publisher URL directly, so Matcha uses it without any decoding. Put them in `summary_feeds` to have them summarized.
 
+### Google News keywords and exclusions
+`google_news_keywords` is a comma-separated list; the terms are OR-ed together. Terms starting with `-` are exclusions that apply to the whole search, not extra OR branches:
+
+```yaml
+google_news_keywords: '"text-to-CAD", CadQuery, "AI CAD", -forex -loonie -USD/CAD'
+# searches: ("text-to-CAD" | CadQuery | "AI CAD") -forex -loonie -USD/CAD
+```
+
 ### Empty and failed sections
 With `show_empty_sections: true` (the default), a section that has nothing to show still gets its header and a one-line note saying why, so an empty section is distinguishable from one that never ran:
 - `No items returned by this feed.` (for `rss.arxiv.org` feeds this adds that arXiv's RSS is empty on days without announcements, such as weekends and holidays; the arXiv *search* feeds from `arxiv_searches` use the query API and are not weekend-limited)
 - `No new items: 5 read, 5 already seen on earlier days.` (also counts items already shown above in the same digest)
 - `⚠️ Could not read this feed: <error>`
 - For the Daily Analysis: `No new articles to screen: …` (with a warning if some analyst feeds could not be read), or a note if the model returned no analysis.
+
+A section that does have new items ends with a short `Not shown again: N already seen on earlier days` line when older items were left out, so you can tell what a manual look at the same feed would additionally show.
 
 `arxiv_searches` sections are titled `arXiv: <name>` using the `name` you gave them, instead of the raw query. Set `show_empty_sections: false` to hide empty sections.
 

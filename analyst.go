@@ -185,7 +185,7 @@ func (s analystStats) note() string {
 	if s.failed == s.feeds && s.feeds > 0 {
 		return fmt.Sprintf("⚠️ _Could not read any of the %d analyst feeds (see the log)._", s.feeds)
 	}
-	note := fmt.Sprintf("_No new articles to screen: %d read from %d feeds, %d already analyzed before_", s.read, s.feeds-s.failed, s.alreadySeen)
+	note := fmt.Sprintf("_No new articles to screen: %d read from %d feeds, %d already analyzed before", s.read, s.feeds-s.failed, s.alreadySeen)
 	if s.failed > 0 {
 		note += fmt.Sprintf("; ⚠️ %d feeds could not be read", s.failed)
 	}
