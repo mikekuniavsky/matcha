@@ -96,6 +96,7 @@ feeds:
 google_news_keywords: CadQuery,Build123d,text-to-CAD,AI CAD,generative CAD,parametric CAD,OpenSCAD
 summarize_google_news: true
 cluster_similar_stories: true
+show_empty_sections: true
 instapaper: true
 weather_latitude: 37.77
 weather_longitude: 122.41
@@ -200,6 +201,15 @@ notification _webhook_url: https://ntfy.sh/myuniquetopic
 With `summarize_google_news: true` (the default) and an LLM configured, each story from `google_news_keywords` is summarized like a `summary_feeds` item, instead of showing only the headline. Google News links are encrypted tokens that no longer redirect, so Matcha asks Google's own web endpoint (the one news.google.com calls) for the publisher URL, then fetches and summarizes that page. That endpoint is undocumented and may change or rate-limit; when decoding fails, or the publisher blocks the request or is paywalled, the story keeps just its headline and Matcha logs `Skipping summary for …` with the reason. Set the option to `false` to go back to headlines only. The limit is 15 stories per run (up to 15 LLM calls).
 
 Google Alerts feeds (`https://www.google.com/alerts/feeds/...`) are more dependable: their links carry the publisher URL directly, so Matcha uses it without any decoding. Put them in `summary_feeds` to have them summarized.
+
+### Empty and failed sections
+With `show_empty_sections: true` (the default), a section that has nothing to show still gets its header and a one-line note saying why, so an empty section is distinguishable from one that never ran:
+- `No items returned by this feed.` (for `rss.arxiv.org` feeds this adds that arXiv's RSS is empty on days without announcements, such as weekends and holidays; the arXiv *search* feeds from `arxiv_searches` use the query API and are not weekend-limited)
+- `No new items: 5 read, 5 already seen on earlier days.` (also counts items already shown above in the same digest)
+- `⚠️ Could not read this feed: <error>`
+- For the Daily Analysis: `No new articles to screen: …` (with a warning if some analyst feeds could not be read), or a note if the model returned no analysis.
+
+`arxiv_searches` sections are titled `arXiv: <name>` using the `name` you gave them, instead of the raw query. Set `show_empty_sections: false` to hide empty sections.
 
 ### One summary per story
 With `cluster_similar_stories: true` (the default), feeds that are summarized (`summary_feeds`, Google Alerts, Google News) summarize only the first story of a group of near-duplicate headlines, such as five outlets covering the same announcement. The others are still listed with their links, marked `↳ Same story as: <first headline>`, and cost no fetch or LLM call.

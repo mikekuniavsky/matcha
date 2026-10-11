@@ -55,11 +55,54 @@ func findSimilarStories(items []*gofeed.Item, store *Storage) map[string]string 
 	return dup
 }
 
+// placeholderFeed stands in for a feed that could not be read, so its section still gets a header.
+func placeholderFeed(rss RSS) *gofeed.Feed {
+	title := rss.name
+	if title == "" {
+		title = shorten(strings.TrimPrefix(strings.TrimPrefix(rss.url, "https://"), "http://"), 70)
+	}
+	return &gofeed.Feed{Title: title, FeedLink: rss.url}
+}
+
+func shorten(s string, max int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if len(s) > max {
+		return s[:max-1] + "…"
+	}
+	return s
+}
+
+// emptyFeedNote explains why a section has nothing to show, so an empty section is
+// distinguishable from one that never ran.
+func emptyFeedNote(feedURL string, total, alreadySeen, shownAbove int) string {
+	if total == 0 {
+		note := "_No items returned by this feed._"
+		if strings.Contains(feedURL, "rss.arxiv.org") {
+			note += " _arXiv's RSS feeds are empty on days without announcements (weekends, holidays)._"
+		}
+		return note
+	}
+	var parts []string
+	if alreadySeen > 0 {
+		parts = append(parts, fmt.Sprintf("%d already seen on earlier days", alreadySeen))
+	}
+	if shownAbove > 0 {
+		parts = append(parts, fmt.Sprintf("%d already shown above in this digest", shownAbove))
+	}
+	return fmt.Sprintf("_No new items: %d read, %s._", total, strings.Join(parts, ", "))
+}
+
 func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer, fp *gofeed.Parser) {
 	feed, err := fp.ParseURL(rss.url)
 	if err != nil {
 		log.Printf("Error parsing %s: %v", rss.url, err)
+		if cfg.ShowEmptySections {
+			w.Write(w.WriteHeader(placeholderFeed(rss)) + w.WriteSummary("⚠️ Could not read this feed: "+shorten(err.Error(), 160), true))
+		}
 		return
+	}
+	if rss.name != "" {
+		feed.Title = rss.name
 	}
 
 	if len(feed.Items) > rss.limit {
@@ -145,6 +188,8 @@ func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer,
 	if itemsFound && outputBuffer != "" {
 		header := w.WriteHeader(feed)
 		w.Write(header + outputBuffer)
+	} else if cfg.ShowEmptySections {
+		w.Write(w.WriteHeader(feed) + w.WriteSummary(emptyFeedNote(rss.url, total, alreadySeen, shownAbove), true))
 	}
 }
 

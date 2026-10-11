@@ -27,8 +27,11 @@ func RunAnalyst(cfg *Config, store *Storage, llm *LLMClient, writer Writer, fp *
 		return
 	}
 
-	items := collectArticlesForAnalysis(cfg, store, fp)
+	items, stats := collectArticlesForAnalysis(cfg, store, fp)
 	if len(items) == 0 {
+		if cfg.ShowEmptySections {
+			writer.Write("\n## Daily Analysis:\n" + writer.WriteSummary(stats.note(), true))
+		}
 		return
 	}
 
@@ -61,6 +64,9 @@ func RunAnalyst(cfg *Config, store *Storage, llm *LLMClient, writer Writer, fp *
 
 	if numbered {
 		analysis = linkCitations(analysis, items)
+	}
+	if analysis == "" && cfg.ShowEmptySections {
+		writer.Write("\n## Daily Analysis:\n" + writer.WriteSummary(fmt.Sprintf("_The model returned no analysis of the %d new articles (see the log for errors)._", len(items)), true))
 	}
 
 	if analysis != "" {
@@ -173,15 +179,31 @@ func writeSelectedPapers(cfg *Config, store *Storage, llm *LLMClient, w Writer, 
 	}
 }
 
-func collectArticlesForAnalysis(cfg *Config, store *Storage, fp *gofeed.Parser) []analystItem {
+type analystStats struct{ feeds, failed, read, alreadySeen int }
+
+func (s analystStats) note() string {
+	if s.failed == s.feeds && s.feeds > 0 {
+		return fmt.Sprintf("⚠️ _Could not read any of the %d analyst feeds (see the log)._", s.feeds)
+	}
+	note := fmt.Sprintf("_No new articles to screen: %d read from %d feeds, %d already analyzed before_", s.read, s.feeds-s.failed, s.alreadySeen)
+	if s.failed > 0 {
+		note += fmt.Sprintf("; ⚠️ %d feeds could not be read", s.failed)
+	}
+	return note + "._"
+}
+
+func collectArticlesForAnalysis(cfg *Config, store *Storage, fp *gofeed.Parser) ([]analystItem, analystStats) {
 	var articles []analystItem
+	var stats analystStats
 
 	for _, feedSpec := range cfg.AnalystFeeds {
+		stats.feeds++
 		// Accept "URL N" like the other feed lists
 		feedURL, limit := getFeedAndLimit(feedSpec)
 		feed, err := fp.ParseURL(feedURL)
 		if err != nil {
 			log.Printf("Analyst: error parsing %s: %v", feedURL, err)
+			stats.failed++
 			continue
 		}
 
@@ -191,10 +213,12 @@ func collectArticlesForAnalysis(cfg *Config, store *Storage, fp *gofeed.Parser) 
 		}
 
 		for _, item := range feed.Items {
+			stats.read++
 			articleLink := item.Link + analystTag
 			seen, seenToday, summary := store.IsSeen(articleLink)
 
 			if seen {
+				stats.alreadySeen++
 				continue
 			}
 
@@ -211,7 +235,7 @@ func collectArticlesForAnalysis(cfg *Config, store *Storage, fp *gofeed.Parser) 
 		}
 	}
 
-	return articles
+	return articles, stats
 }
 
 func sendNotification(url, message string) error {

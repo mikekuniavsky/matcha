@@ -52,6 +52,7 @@ feeds:
 google_news_keywords: CadQuery,Build123d,text-to-CAD,AI CAD,generative CAD,parametric CAD,OpenSCAD
 summarize_google_news: true
 cluster_similar_stories: true
+show_empty_sections: true
 instapaper: true
 weather_latitude: 37.77
 weather_longitude: 122.41
@@ -83,6 +84,7 @@ type Config struct {
 	GoogleNewsKeywords     string
 	SummarizeGoogleNews    bool
 	ClusterSimilarStories  bool
+	ShowEmptySections      bool
 	Instapaper             bool
 	WeatherLat             float64
 	WeatherLon             float64
@@ -112,11 +114,13 @@ type RSS struct {
 	url       string
 	limit     int
 	summarize bool
+	name      string // optional section title overriding the feed's own title
 }
 
 func LoadConfig() (*Config, error) {
 	viper.SetDefault("limit", 20)
 	viper.SetDefault("cluster_similar_stories", true)
+	viper.SetDefault("show_empty_sections", true)
 	viper.SetDefault("analyst_max_papers", 3)
 
 	terminalMode := flag.Bool("t", false, "Run Matcha in Terminal Mode, no markdown files will be created")
@@ -154,6 +158,7 @@ func LoadConfig() (*Config, error) {
 		GoogleNewsKeywords:     viper.GetString("google_news_keywords"),
 		SummarizeGoogleNews:    viper.GetBool("summarize_google_news"),
 		ClusterSimilarStories:  viper.GetBool("cluster_similar_stories"),
+		ShowEmptySections:      viper.GetBool("show_empty_sections"),
 		Instapaper:             viper.GetBool("instapaper"),
 		WeatherLat:             viper.GetFloat64("weather_latitude"),
 		WeatherLon:             viper.GetFloat64("weather_longitude"),

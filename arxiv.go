@@ -110,9 +110,9 @@ func loadArxivSearches() (feeds []RSS, analyst []string) {
 		}
 		switch use {
 		case "summary":
-			feeds = append(feeds, RSS{url: u, limit: s.Limit, summarize: true})
+			feeds = append(feeds, RSS{url: u, limit: s.Limit, summarize: true, name: "arXiv: " + name})
 		case "feed":
-			feeds = append(feeds, RSS{url: u, limit: s.Limit})
+			feeds = append(feeds, RSS{url: u, limit: s.Limit, name: "arXiv: " + name})
 		case "analyst":
 			analyst = append(analyst, fmt.Sprintf("%s %d", u, s.Limit))
 		default:
