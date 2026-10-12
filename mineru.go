@@ -22,7 +22,15 @@ func arxivPDFURL(link string) (string, bool) {
 	if m == nil {
 		return "", false
 	}
-	return "https://arxiv.org/pdf/" + m[1], true
+	// Keep the .pdf extension: MinerU names a URL-sourced file after the last path segment and
+	// rejects it as "Unsupported file type" when there is no recognizable extension.
+	return "https://arxiv.org/pdf/" + m[1] + ".pdf", true
+}
+
+// hasPDFExtension reports whether the URL's path ends in .pdf.
+func hasPDFExtension(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	return err == nil && strings.HasSuffix(strings.ToLower(u.Path), ".pdf")
 }
 
 // MinerUClient converts PDFs to markdown through a running MinerU API server.
@@ -64,12 +72,15 @@ func (m *MinerUClient) PDFToMarkdown(pdfURL string) (string, error) {
 		return m.legacyParse(pdf, pdfFileName(pdfURL))
 	}
 
-	// Let the server fetch the PDF itself; fall back to uploading it if that fails.
-	md, err := m.v1Parse(map[string]string{"type": "url", "url": pdfURL})
-	if err == nil {
-		return md, nil
+	// Let the server fetch the PDF itself when the URL looks like a PDF (MinerU decides the
+	// file type from the name); otherwise, or if that fails, upload the PDF.
+	if hasPDFExtension(pdfURL) {
+		md, err := m.v1Parse(map[string]string{"type": "url", "url": pdfURL})
+		if err == nil {
+			return md, nil
+		}
+		log.Printf("MinerU could not parse %s by URL (%v); uploading the PDF instead", pdfURL, err)
 	}
-	log.Printf("MinerU could not parse %s by URL (%v); uploading the PDF instead", pdfURL, err)
 	pdf, err := downloadPDF(pdfURL)
 	if err != nil {
 		return "", err
