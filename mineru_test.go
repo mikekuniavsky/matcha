@@ -11,9 +11,9 @@ import (
 
 func TestArxivPDFURL(t *testing.T) {
 	for in, want := range map[string]string{
-		"https://arxiv.org/abs/2401.01234":        "https://arxiv.org/pdf/2401.01234",
-		"https://arxiv.org/abs/2401.01234v2":      "https://arxiv.org/pdf/2401.01234v2",
-		"http://www.arxiv.org/pdf/2401.01234.pdf": "https://arxiv.org/pdf/2401.01234",
+		"https://arxiv.org/abs/2401.01234":        "https://arxiv.org/pdf/2401.01234.pdf",
+		"https://arxiv.org/abs/2401.01234v2":      "https://arxiv.org/pdf/2401.01234v2.pdf",
+		"http://www.arxiv.org/pdf/2401.01234.pdf": "https://arxiv.org/pdf/2401.01234.pdf",
 	} {
 		got, ok := arxivPDFURL(in)
 		if !ok || got != want {
@@ -49,11 +49,13 @@ func TestMinerULegacyParse(t *testing.T) {
 
 // fakeMinerU follows the /v1 schema of MinerU 3.x (uploads, parse jobs, files).
 // urlOK controls whether jobs may use a "url" source.
-func fakeMinerU(t *testing.T, urlOK bool) *httptest.Server {
+func fakeMinerU(t *testing.T, urlOK bool, urlJobs *int) *httptest.Server {
 	polls := 0
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/health", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{"status":"ok","version":"3.4.5"}`)) })
-	mux.HandleFunc("/pdf", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("%PDF-1.4 fake")) })
+	servePDF := func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("%PDF-1.4 fake")) }
+	mux.HandleFunc("/pdf", servePDF)
+	mux.HandleFunc("/paper.pdf", servePDF)
 	mux.HandleFunc("/v1/uploads", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"id":"upload_1","bytes":13,"status":"pending"}`))
 	})
@@ -78,6 +80,9 @@ func fakeMinerU(t *testing.T, urlOK bool) *httptest.Server {
 		}
 		json.NewDecoder(r.Body).Decode(&req)
 		src := req.Files[0].Source
+		if src["type"] == "url" {
+			*urlJobs++
+		}
 		if src["type"] == "url" && !urlOK {
 			w.WriteHeader(400)
 			w.Write([]byte(`{"error":{"type":"invalid_request","message":"url sources disabled"}}`))
@@ -110,20 +115,34 @@ func testClient(url string) *MinerUClient {
 }
 
 func TestMinerUV1ByURL(t *testing.T) {
-	srv := fakeMinerU(t, true)
+	var urlJobs int
+	srv := fakeMinerU(t, true, &urlJobs)
 	defer srv.Close()
-	md, err := testClient(srv.URL).PDFToMarkdown(srv.URL + "/pdf")
-	if err != nil || md != "# Parsed paper" {
-		t.Fatalf("got %q, %v", md, err)
+	md, err := testClient(srv.URL).PDFToMarkdown(srv.URL + "/paper.pdf")
+	if err != nil || md != "# Parsed paper" || urlJobs != 1 {
+		t.Fatalf("got %q, %v, url jobs %d", md, err, urlJobs)
 	}
 }
 
 func TestMinerUV1UploadFallback(t *testing.T) {
-	srv := fakeMinerU(t, false)
+	var urlJobs int
+	srv := fakeMinerU(t, false, &urlJobs)
+	defer srv.Close()
+	md, err := testClient(srv.URL).PDFToMarkdown(srv.URL + "/paper.pdf")
+	if err != nil || md != "# Parsed paper" || urlJobs != 1 {
+		t.Fatalf("got %q, %v, url jobs %d", md, err, urlJobs)
+	}
+}
+
+// A URL without a .pdf extension (MinerU would reject the name as "Unsupported file type")
+// goes straight to upload, without creating a doomed URL job first.
+func TestMinerUSkipsURLJobWithoutPDFExtension(t *testing.T) {
+	var urlJobs int
+	srv := fakeMinerU(t, true, &urlJobs)
 	defer srv.Close()
 	md, err := testClient(srv.URL).PDFToMarkdown(srv.URL + "/pdf")
-	if err != nil || md != "# Parsed paper" {
-		t.Fatalf("got %q, %v", md, err)
+	if err != nil || md != "# Parsed paper" || urlJobs != 0 {
+		t.Fatalf("got %q, %v, url jobs %d", md, err, urlJobs)
 	}
 }
 
