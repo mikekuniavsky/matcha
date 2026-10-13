@@ -209,22 +209,24 @@ func getSummary(llm *LLMClient, item *gofeed.Item, cfg *Config) string {
 		}
 		link := unwrapGoogleRedirect(item.Link) // Google Alerts feeds wrap the publisher URL
 		if isGoogleNewsLink(link) {
-			text, err := googleNewsArticleText(link)
+			article, err := googleNewsArticle(link)
 			if err != nil {
 				log.Printf("Skipping summary for %s: %v", item.Link, err)
 				return ""
 			}
-			fmt.Printf("  fetched %d characters of article text\n", len(text))
-			return llm.Summarize(text)
+			fmt.Printf("  fetched %d characters of article text\n", len(article.Text))
+			return addCodeLinks(llm.Summarize(article.Text), articleCodeLinks(article))
 		}
 		content := item.Description
-		if text, err := fetchArticleText(link); err == nil {
-			content = text
-			fmt.Printf("  fetched %d characters of article text\n", len(text))
+		var links []string
+		if article, err := fetchArticle(link); err == nil {
+			content = article.Text
+			links = articleCodeLinks(article)
+			fmt.Printf("  fetched %d characters of article text\n", len(article.Text))
 		} else {
 			log.Printf("Could not fetch %s, summarizing feed description instead: %v", link, err)
 		}
-		return llm.Summarize(content)
+		return addCodeLinks(llm.Summarize(content), links)
 	}
 	return item.Description
 }

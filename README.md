@@ -210,6 +210,11 @@ google_news_keywords: '"text-to-CAD", CadQuery, "AI CAD", -forex -loonie -USD/CA
 # searches: ("text-to-CAD" | CadQuery | "AI CAD") -forex -loonie -USD/CAD
 ```
 
+### Code and data links
+Summaries of papers, news stories and blog posts end with a `**Code/data:**` line when the source mentions a repository or dataset, so you don't have to open the article to find it. For papers this is taken from the MinerU text (references and appendices are trimmed first, so other papers' links don't leak in); for news and Alerts it comes from the article's visible text and from the targets of its links, which the plain text would otherwise lose ("the project's GitHub page"). It is a pattern match, not an LLM step, so it costs nothing extra.
+
+Recognized: GitHub, GitLab, Bitbucket, Codeberg, SourceForge, Hugging Face, PyPI, `*.github.io` project pages, Zenodo, Figshare, OSF and Kaggle. Only project pages count (`github.com/owner/repo`, not `github.com` or `github.com/features/...`), each project is listed once even if linked several times, and at most 5 are shown. Links that PDF extraction splits across lines can be missed.
+
 ### Empty and failed sections
 With `show_empty_sections: true` (the default), a section that has nothing to show still gets its header and a one-line note saying why, so an empty section is distinguishable from one that never ran:
 - `No items returned by this feed.` (for `rss.arxiv.org` feeds this adds that arXiv's RSS is empty on days without announcements, such as weekends and holidays; the arXiv *search* feeds from `arxiv_searches` use the query API and are not weekend-limited)
@@ -240,7 +245,7 @@ Matcha supports two MinerU API generations and picks one by probing `GET /v1/hea
 - **MinerU 3.x job API** (`/v1/parse/jobs`): Matcha creates a markdown job with the paper's PDF URL, polls it (up to 15 minutes), downloads the markdown, and deletes the output file. If the server can't fetch the URL itself, Matcha downloads the PDF and uploads it instead. Only one job runs at a time on a default server; a `429` is retried.
 - **Older `mineru-api`** (`POST /file_parse`): used when `/v1/health` isn't available.
 
-Before summarizing, Matcha drops the references, acknowledgments and appendices (everything from a `References`/`Appendix`-style heading in the second half of the paper) so the character budget goes to the body and results. It also collects any GitHub, GitLab, Hugging Face, Zenodo and similar links from the body and lists them under the summary as `Code/data:`.
+Before summarizing, Matcha drops the references, acknowledgments and appendices (everything from a `References`/`Appendix`-style heading in the second half of the paper) so the character budget goes to the body and results. It also collects code and data links from the body and lists them under the summary as `Code/data:` (see below).
 
 If MinerU is unreachable or fails, Matcha logs it and falls back to the abstract. Parsing can take minutes per paper on CPU, so keep arXiv limits small; summaries are cached in the database so each paper is parsed once. Non-arXiv links are unaffected.
 

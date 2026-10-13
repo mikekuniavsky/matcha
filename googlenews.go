@@ -126,17 +126,17 @@ func parseBatchExecuteURL(body string) (string, error) {
 	return "", fmt.Errorf("no url in batchexecute response")
 }
 
-// googleNewsArticleText decodes a Google News link and returns the publisher article's text.
-func googleNewsArticleText(link string) (string, error) {
+// googleNewsArticle decodes a Google News link and returns the publisher article.
+func googleNewsArticle(link string) (fetchedArticle, error) {
 	target, err := decodeGoogleNewsURL(link)
 	if err != nil {
-		return "", fmt.Errorf("decode google news link: %w", err)
+		return fetchedArticle{}, fmt.Errorf("decode google news link: %w", err)
 	}
-	text, err := fetchArticleText(target)
+	article, err := fetchArticle(target)
 	if err != nil {
-		return "", fmt.Errorf("fetch %s: %w", target, err)
+		return fetchedArticle{}, fmt.Errorf("fetch %s: %w", target, err)
 	}
-	return text, nil
+	return article, nil
 }
 
 // unwrapGoogleRedirect returns the publisher URL for Google Alerts links of the form

@@ -51,3 +51,49 @@ func TestDedupeKey(t *testing.T) {
 		t.Error("non-arXiv link changed")
 	}
 }
+
+func TestExtractCodeLinksOnlyProjectPages(t *testing.T) {
+	text := "Sites: https://github.com/ https://github.com/features/copilot https://github.com/login https://huggingface.co/papers/2401.00001 " +
+		"https://www.GitHub.com/Foo/Bar.git and again https://github.com/foo/bar/tree/main, " +
+		"model https://huggingface.co/acme/cad-model, data https://huggingface.co/datasets/acme/cad-data and https://huggingface.co/datasets/acme/other-data, repo https://gitlab.com/lab/proj, https://pypi.org/project/cadquery/ " +
+		"https://example.com/github.com/foo/baz"
+	got := extractCodeLinks(text, 10)
+	want := []string{
+		"https://www.GitHub.com/Foo/Bar.git", // same project as the later /tree/main link: listed once
+		"https://huggingface.co/acme/cad-model",
+		"https://huggingface.co/datasets/acme/cad-data",
+		"https://huggingface.co/datasets/acme/other-data",
+		"https://gitlab.com/lab/proj",
+		"https://pypi.org/project/cadquery/",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got  %v\nwant %v", got, want)
+	}
+}
+
+func TestAddCodeLinks(t *testing.T) {
+	if got := addCodeLinks("summary", []string{"https://github.com/a/b", "https://zenodo.org/r/1"}); got != "summary\n\n**Code/data:** https://github.com/a/b · https://zenodo.org/r/1" {
+		t.Errorf("got %q", got)
+	}
+	if addCodeLinks("", []string{"https://github.com/a/b"}) != "" {
+		t.Error("links added to an empty summary")
+	}
+	if addCodeLinks("summary", nil) != "summary" {
+		t.Error("summary changed without links")
+	}
+}
+
+// News articles hide repo links behind anchor text ("the project's GitHub page"); the plain
+// text drops the target, so links come from the article's anchors.
+func TestFetchArticleKeepsLinks(t *testing.T) {
+	para := strings.Repeat("Acme released an open-source CAD generator this week for engineers. ", 12)
+	srv := feedServer(t, `<html><body><article><h1>Acme ships CAD tool</h1><p>`+para+`The code is on <a href="https://github.com/acme/cadgen">GitHub</a>
+and docs at <a href="/docs">docs</a>, plus <a href="https://example.com/press">the press page</a>.</p><p>`+para+`</p></article></body></html>`)
+	a, err := fetchArticle(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := articleCodeLinks(a); !reflect.DeepEqual(got, []string{"https://github.com/acme/cadgen"}) {
+		t.Errorf("code links = %v (all links %v)", got, a.Links)
+	}
+}

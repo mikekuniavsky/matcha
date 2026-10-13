@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/PuerkitoBio/goquery"
 	readability "github.com/go-shiori/go-readability"
 )
 
@@ -22,11 +24,24 @@ var articleClient = &http.Client{
 	},
 }
 
+// fetchedArticle is the readable text of a page plus the links inside the article body.
+type fetchedArticle struct {
+	Text  string
+	Links []string
+}
+
 // fetchArticleText downloads pageURL and returns the readable article text.
 func fetchArticleText(pageURL string) (string, error) {
+	a, err := fetchArticle(pageURL)
+	return a.Text, err
+}
+
+// fetchArticle downloads pageURL and returns the readable article text and the absolute
+// http(s) links in the article body (the plain text drops link targets).
+func fetchArticle(pageURL string) (fetchedArticle, error) {
 	req, err := http.NewRequest(http.MethodGet, pageURL, nil)
 	if err != nil {
-		return "", err
+		return fetchedArticle{}, err
 	}
 	req.Header.Set("User-Agent", googleNewsUA)
 	req.Header.Set("Accept", "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8")
@@ -34,15 +49,30 @@ func fetchArticleText(pageURL string) (string, error) {
 
 	resp, err := articleClient.Do(req)
 	if err != nil {
-		return "", err
+		return fetchedArticle{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
-		return "", fmt.Errorf("status %d", resp.StatusCode)
+		return fetchedArticle{}, fmt.Errorf("status %d", resp.StatusCode)
 	}
 	article, err := readability.FromReader(io.LimitReader(resp.Body, 5<<20), resp.Request.URL)
 	if err != nil {
-		return "", err
+		return fetchedArticle{}, err
 	}
-	return article.TextContent, nil
+	return fetchedArticle{Text: article.TextContent, Links: hrefsIn(article.Content)}, nil
+}
+
+// hrefsIn returns the absolute http(s) link targets in an HTML fragment.
+func hrefsIn(htmlFragment string) []string {
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(htmlFragment))
+	if err != nil {
+		return nil
+	}
+	var links []string
+	doc.Find("a[href]").Each(func(_ int, s *goquery.Selection) {
+		if href := strings.TrimSpace(s.AttrOr("href", "")); strings.HasPrefix(href, "http://") || strings.HasPrefix(href, "https://") {
+			links = append(links, href)
+		}
+	})
+	return links
 }
