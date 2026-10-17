@@ -98,7 +98,7 @@ func skippedNote(alreadySeen, shownAbove int) string {
 }
 
 func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer, fp *gofeed.Parser) {
-	feed, err := fp.ParseURL(rss.url)
+	feed, _, err := fetchFeed(fp, rss.url)
 	if err != nil {
 		log.Printf("Error parsing %s: %v", rss.url, err)
 		if cfg.ShowEmptySections {

@@ -215,6 +215,18 @@ Summaries of papers, news stories and blog posts end with a `**Code/data:**` lin
 
 Recognized: GitHub, GitLab, Bitbucket, Codeberg, SourceForge, Hugging Face, PyPI, `*.github.io` project pages, Zenodo, Figshare, OSF and Kaggle. Only project pages count (`github.com/owner/repo`, not `github.com` or `github.com/features/...`), each project is listed once even if linked several times, and at most 5 are shown. Links that PDF extraction splits across lines can be missed.
 
+### Feed fetching, rate limits and `-check-feeds`
+Matcha identifies itself (`Matcha/1.0 (+https://github.com/...)`), spaces out requests to arXiv hosts by at least 3 seconds (arXiv's API asks for one request every 3 seconds), and retries a feed that answers `429 Too Many Requests` or `503`: it honors a `Retry-After` header (up to 2 minutes), otherwise waits 5, 20 and 60 seconds, then gives up with `⚠️ Could not read this feed: http error: 429 Too Many Requests`.
+
+To test your feeds without producing a digest, run `./matcha -check-feeds`. It fetches every configured feed (and analyst feed) once with the same pacing and retries, and prints one line each:
+
+```
+ok    200  1 attempt(s)    1.2s  arXiv: CAD tools and generation  (5 items)
+FAIL  429  4 attempt(s)   88.0s  analyst: https://export.arxiv.org/api/query?...  (http error: 429 Too Many Requests)
+```
+
+It uses no LLM, writes no files and does not touch the database, so it is safe to run as often as you like (but each run is real traffic to those sites, so a loop of runs can itself trigger a 429).
+
 ### Empty and failed sections
 With `show_empty_sections: true` (the default), a section that has nothing to show still gets its header and a one-line note saying why, so an empty section is distinguishable from one that never ran:
 - `No items returned by this feed.` (for `rss.arxiv.org` feeds this adds that arXiv's RSS is empty on days without announcements, such as weekends and holidays; the arXiv *search* feeds from `arxiv_searches` use the query API and are not weekend-limited)
@@ -293,6 +305,8 @@ Run matcha with --help option to see current cli options:
   -o filepath
     	OPML file path to append feeds from opml files
   -t	Run Matcha in Terminal Mode, no markdown files will be created
+  -check-feeds
+    	Fetch every configured feed once and report status codes and item counts (no digest, LLM or database)
 ```
 
 #### OPML Import

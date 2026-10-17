@@ -15,6 +15,11 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
+	if cfg.CheckFeeds {
+		runFeedCheck(cfg)
+		return
+	}
+
 	store, err := NewStorage(cfg.DatabaseFilePath)
 	if err != nil {
 		log.Fatalf("Failed to init DB: %v", err)

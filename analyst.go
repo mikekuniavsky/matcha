@@ -200,7 +200,7 @@ func collectArticlesForAnalysis(cfg *Config, store *Storage, fp *gofeed.Parser) 
 		stats.feeds++
 		// Accept "URL N" like the other feed lists
 		feedURL, limit := getFeedAndLimit(feedSpec)
-		feed, err := fp.ParseURL(feedURL)
+		feed, _, err := fetchFeed(fp, feedURL)
 		if err != nil {
 			log.Printf("Analyst: error parsing %s: %v", feedURL, err)
 			stats.failed++

@@ -108,6 +108,7 @@ type Config struct {
 	NotificationTrigger    string
 	NotificationWebhookURL string
 	GenerateAll            bool
+	CheckFeeds             bool
 }
 
 type RSS struct {
@@ -128,6 +129,7 @@ func LoadConfig() (*Config, error) {
 	opmlFile := flag.String("o", "", "OPML file path to append feeds from opml files")
 	build := flag.Bool("build", false, "Dev: Build matcha binaries in the bin directory")
 	generateAll := flag.Bool("generate-all", false, "Generate markdown files for all days in the database")
+	checkFeeds := flag.Bool("check-feeds", false, "Fetch every configured feed once and report status codes and item counts (no digest, LLM or database)")
 
 	flag.Parse()
 
@@ -182,6 +184,7 @@ func LoadConfig() (*Config, error) {
 		NotificationTrigger:    viper.GetString("notification_trigger"),
 		NotificationWebhookURL: viper.GetString("notification_webhook_url"),
 		GenerateAll:            *generateAll,
+		CheckFeeds:             *checkFeeds,
 	}
 
 	if cfg.MarkdownDirPath == "" {
