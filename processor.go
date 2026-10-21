@@ -204,7 +204,7 @@ func ProcessFeed(rss RSS, cfg *Config, store *Storage, llm *LLMClient, w Writer,
 func getSummary(llm *LLMClient, item *gofeed.Item, cfg *Config) string {
 	fmt.Printf("Summarizing: %s\n", item.Link)
 	if llm != nil {
-		if md := getPaperMarkdown(item.Link, cfg); md != "" {
+		if md := getPaperMarkdown(item.Link, item.Title, cfg, false); md != "" {
 			return summarizePaperText(llm, md)
 		}
 		link := unwrapGoogleRedirect(item.Link) // Google Alerts feeds wrap the publisher URL
@@ -231,21 +231,33 @@ func getSummary(llm *LLMClient, item *gofeed.Item, cfg *Config) string {
 	return item.Description
 }
 
-// getPaperMarkdown returns the full text of an arXiv paper parsed by MinerU,
-// or "" when MinerU isn't configured, the link isn't a paper, or parsing fails.
-func getPaperMarkdown(link string, cfg *Config) string {
+// getPaperMarkdown returns the full text of an arXiv paper: the stored copy if there is one,
+// otherwise parsed by MinerU (and saved per the paper_store settings). It returns "" when the
+// link isn't a paper, MinerU isn't configured, or parsing fails. pick is true for papers the
+// Analyst selected.
+func getPaperMarkdown(link, title string, cfg *Config, pick bool) string {
+	if md, ok := loadStoredPaper(cfg, link); ok {
+		fmt.Printf("Using stored copy of %s\n", link)
+		return md
+	}
 	mc := NewMinerUClient(cfg.MinerUURL, cfg.MinerUTier)
 	pdfURL, ok := arxivPDFURL(link)
 	if mc == nil || !ok {
 		return ""
 	}
+	store := shouldStorePapers(cfg, pick)
 	fmt.Printf("Parsing paper with MinerU: %s\n", pdfURL)
-	md, err := mc.PDFToMarkdown(pdfURL)
+	out, err := mc.PDFToOutput(pdfURL, store && cfg.PaperStoreZip)
 	if err != nil {
 		log.Printf("MinerU failed for %s, falling back to abstract: %v", link, err)
 		return ""
 	}
-	return md
+	if store {
+		if err := savePaper(cfg, link, title, out); err != nil {
+			log.Printf("Could not save %s to %s: %v", link, cfg.PaperStoreDir, err)
+		}
+	}
+	return out.Markdown
 }
 
 func getReadingTime(link string) string {

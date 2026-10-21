@@ -48,6 +48,9 @@ type MinerUClient struct {
 	retryDelay   time.Duration
 }
 
+// mineruPollInterval is how often a running parse job is checked (shortened in tests).
+var mineruPollInterval = 3 * time.Second
+
 func NewMinerUClient(baseURL, tier string) *MinerUClient {
 	if baseURL == "" {
 		return nil
@@ -56,41 +59,56 @@ func NewMinerUClient(baseURL, tier string) *MinerUClient {
 		baseURL:      strings.TrimRight(baseURL, "/"),
 		tier:         tier,
 		http:         &http.Client{Timeout: 10 * time.Minute}, // layout/OCR models can be slow on CPU
-		pollInterval: 3 * time.Second,
+		pollInterval: mineruPollInterval,
 		jobTimeout:   15 * time.Minute,
 		retryDelay:   10 * time.Second,
 	}
 }
 
+// MinerUOutput is what a parse returns: the markdown and, when asked for and available,
+// MinerU's zip package (markdown, structured JSON and extracted assets).
+type MinerUOutput struct {
+	Markdown string
+	Zip      []byte
+}
+
 // PDFToMarkdown returns MinerU's markdown for the PDF at pdfURL.
 func (m *MinerUClient) PDFToMarkdown(pdfURL string) (string, error) {
+	out, err := m.PDFToOutput(pdfURL, false)
+	return out.Markdown, err
+}
+
+// PDFToOutput parses the PDF at pdfURL. With wantZip it also asks for MinerU's zip package
+// (best effort: a missing or failed zip does not fail the parse; the legacy API has none).
+func (m *MinerUClient) PDFToOutput(pdfURL string, wantZip bool) (MinerUOutput, error) {
 	if !m.hasV1() {
 		pdf, err := downloadPDF(pdfURL)
 		if err != nil {
-			return "", err
+			return MinerUOutput{}, err
 		}
-		return m.legacyParse(pdf, pdfFileName(pdfURL))
+		md, err := m.legacyParse(pdf, pdfFileName(pdfURL))
+		return MinerUOutput{Markdown: md}, err
 	}
 
 	// Let the server fetch the PDF itself when the URL looks like a PDF (MinerU decides the
 	// file type from the name); otherwise, or if that fails, upload the PDF.
 	if hasPDFExtension(pdfURL) {
-		md, err := m.v1Parse(map[string]string{"type": "url", "url": pdfURL})
+		out, err := m.v1Parse(map[string]string{"type": "url", "url": pdfURL}, wantZip)
 		if err == nil {
-			return md, nil
+			return out, nil
 		}
 		log.Printf("MinerU could not parse %s by URL (%v); uploading the PDF instead", pdfURL, err)
 	}
 	pdf, err := downloadPDF(pdfURL)
 	if err != nil {
-		return "", err
+		return MinerUOutput{}, err
 	}
 	fileID, err := m.upload(pdf, pdfFileName(pdfURL))
 	if err != nil {
-		return "", err
+		return MinerUOutput{}, err
 	}
 	defer m.callJSON(http.MethodDelete, "/v1/files/"+fileID, nil, nil) // best-effort cleanup
-	return m.v1Parse(map[string]string{"type": "file_id", "file_id": fileID})
+	return m.v1Parse(map[string]string{"type": "file_id", "file_id": fileID}, wantZip)
 }
 
 func downloadPDF(pdfURL string) ([]byte, error) {
@@ -135,6 +153,9 @@ type v1Job struct {
 			Markdown *struct {
 				FileID string `json:"file_id"`
 			} `json:"markdown"`
+			Zip *struct {
+				FileID string `json:"file_id"`
+			} `json:"zip"`
 		} `json:"output_files"`
 		Error *struct {
 			Message string `json:"message"`
@@ -205,12 +226,17 @@ func (m *MinerUClient) callJSON(method, path string, in, out interface{}) (int, 
 	return resp.StatusCode, nil
 }
 
-// v1Parse creates a markdown parse job for one source, waits for it, and returns the markdown.
-func (m *MinerUClient) v1Parse(source map[string]string) (string, error) {
+// v1Parse creates a markdown (and optionally zip) parse job for one source, waits for it,
+// and returns the outputs.
+func (m *MinerUClient) v1Parse(source map[string]string, wantZip bool) (MinerUOutput, error) {
+	formats := []string{"markdown"}
+	if wantZip {
+		formats = append(formats, "zip")
+	}
 	req := map[string]interface{}{
 		"files":          []interface{}{map[string]interface{}{"source": source}},
 		"ocr_mode":       "auto",
-		"output_formats": []string{"markdown"},
+		"output_formats": formats,
 	}
 	if m.tier != "" {
 		req["tier"] = m.tier
@@ -226,7 +252,7 @@ func (m *MinerUClient) v1Parse(source map[string]string) (string, error) {
 			time.Sleep(m.retryDelay)
 			continue
 		}
-		return "", err
+		return MinerUOutput{}, err
 	}
 
 	jobID := job.JobID
@@ -234,43 +260,61 @@ func (m *MinerUClient) v1Parse(source map[string]string) (string, error) {
 	for {
 		switch job.Status {
 		case "completed", "partial":
-			return m.fetchMarkdown(job)
+			return m.fetchOutput(job, wantZip)
 		case "failed", "canceled":
-			return "", fmt.Errorf("mineru job %s %s%s", jobID, job.Status, job.errorText())
+			return MinerUOutput{}, fmt.Errorf("mineru job %s %s%s", jobID, job.Status, job.errorText())
 		}
 		if time.Now().After(deadline) {
 			m.callJSON(http.MethodDelete, "/v1/parse/jobs/"+jobID, nil, nil)
-			return "", fmt.Errorf("mineru job %s timed out after %s", jobID, m.jobTimeout)
+			return MinerUOutput{}, fmt.Errorf("mineru job %s timed out after %s", jobID, m.jobTimeout)
 		}
 		time.Sleep(m.pollInterval)
 		job = v1Job{}
 		if _, err := m.callJSON(http.MethodGet, "/v1/parse/jobs/"+jobID, nil, &job); err != nil {
-			return "", err
+			return MinerUOutput{}, err
 		}
 	}
 }
 
-func (m *MinerUClient) fetchMarkdown(job v1Job) (string, error) {
+// downloadOutput fetches a job output file and deletes it from the server (best effort).
+func (m *MinerUClient) downloadOutput(fileID string) ([]byte, error) {
+	resp, err := m.http.Get(m.baseURL + "/v1/files/" + fileID + "/content")
+	if err != nil {
+		return nil, fmt.Errorf("mineru download output: %w", err)
+	}
+	raw, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil || resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("mineru download output: status %s", resp.Status)
+	}
+	m.callJSON(http.MethodDelete, "/v1/files/"+fileID, nil, nil)
+	return raw, nil
+}
+
+func (m *MinerUClient) fetchOutput(job v1Job, wantZip bool) (MinerUOutput, error) {
 	for _, f := range job.Files {
 		if f.OutputFiles == nil || f.OutputFiles.Markdown == nil {
 			continue
 		}
-		id := f.OutputFiles.Markdown.FileID
-		resp, err := m.http.Get(m.baseURL + "/v1/files/" + id + "/content")
+		raw, err := m.downloadOutput(f.OutputFiles.Markdown.FileID)
 		if err != nil {
-			return "", fmt.Errorf("mineru download output: %w", err)
+			return MinerUOutput{}, err
 		}
-		raw, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil || resp.StatusCode != http.StatusOK {
-			return "", fmt.Errorf("mineru download output: status %s", resp.Status)
+		md := string(raw)
+		if strings.TrimSpace(md) == "" {
+			continue
 		}
-		m.callJSON(http.MethodDelete, "/v1/files/"+id, nil, nil) // best-effort cleanup
-		if md := string(raw); strings.TrimSpace(md) != "" {
-			return md, nil
+		out := MinerUOutput{Markdown: md}
+		if wantZip && f.OutputFiles.Zip != nil {
+			if zip, err := m.downloadOutput(f.OutputFiles.Zip.FileID); err != nil {
+				log.Printf("MinerU zip package unavailable: %v", err)
+			} else {
+				out.Zip = zip
+			}
 		}
+		return out, nil
 	}
-	return "", fmt.Errorf("mineru job %s finished without markdown output%s", job.JobID, job.errorText())
+	return MinerUOutput{}, fmt.Errorf("mineru job %s finished without markdown output%s", job.JobID, job.errorText())
 }
 
 // upload sends pdf bytes to MinerU (create upload, PUT content, complete) and returns the file ID.

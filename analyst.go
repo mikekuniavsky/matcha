@@ -162,7 +162,7 @@ func writeSelectedPapers(cfg *Config, store *Storage, llm *LLMClient, w Writer, 
 		}
 		seen, _, summary := store.IsSeen(it.Link)
 		if summary == "" {
-			text := getPaperMarkdown(it.Link, cfg)
+			text := getPaperMarkdown(it.Link, it.Title, cfg, true)
 			if text == "" {
 				text = it.Description // MinerU unavailable: fall back to the abstract
 			}

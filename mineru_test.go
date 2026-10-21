@@ -51,6 +51,7 @@ func TestMinerULegacyParse(t *testing.T) {
 // urlOK controls whether jobs may use a "url" source.
 func fakeMinerU(t *testing.T, urlOK bool, urlJobs *int) *httptest.Server {
 	polls := 0
+	zipRequested := false
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/health", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{"status":"ok","version":"3.4.5"}`)) })
 	servePDF := func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("%PDF-1.4 fake")) }
@@ -88,9 +89,14 @@ func fakeMinerU(t *testing.T, urlOK bool, urlJobs *int) *httptest.Server {
 			w.Write([]byte(`{"error":{"type":"invalid_request","message":"url sources disabled"}}`))
 			return
 		}
-		if src["type"] == "file_id" && src["file_id"] != "file-src" || len(req.Formats) != 1 || req.Formats[0] != "markdown" || req.Tier != "basic" {
+		if src["type"] == "file_id" && src["file_id"] != "file-src" || len(req.Formats) == 0 || req.Formats[0] != "markdown" || len(req.Formats) > 2 || req.Tier != "basic" {
 			http.Error(w, "bad job", 400)
 			return
+		}
+		for _, f := range req.Formats {
+			if f == "zip" {
+				zipRequested = true
+			}
 		}
 		w.WriteHeader(202)
 		w.Write([]byte(`{"job_id":"job_1","status":"queued","files":[]}`))
@@ -101,9 +107,14 @@ func fakeMinerU(t *testing.T, urlOK bool, urlJobs *int) *httptest.Server {
 			w.Write([]byte(`{"job_id":"job_1","status":"running","files":[]}`))
 			return
 		}
-		w.Write([]byte(`{"job_id":"job_1","status":"completed","files":[{"name":"p.pdf","status":"completed","output_files":{"markdown":{"file_id":"file-md","bytes":9}}}]}`))
+		zip := ""
+		if zipRequested {
+			zip = `,"zip":{"file_id":"file-zip","bytes":8}`
+		}
+		w.Write([]byte(`{"job_id":"job_1","status":"completed","files":[{"name":"p.pdf","status":"completed","output_files":{"markdown":{"file_id":"file-md","bytes":9}` + zip + `}}]}`))
 	})
 	mux.HandleFunc("/v1/files/file-md/content", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("# Parsed paper")) })
+	mux.HandleFunc("/v1/files/file-zip/content", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ZIPBYTES")) })
 	mux.HandleFunc("/v1/files/", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{"deleted":true}`)) })
 	return httptest.NewServer(mux)
 }

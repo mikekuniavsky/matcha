@@ -113,6 +113,9 @@ summary_prompt:
 paper_summary_prompt:
 mineru_url: http://localhost:8000
 mineru_tier:
+paper_store_dir:
+paper_store: picks
+paper_store_zip: false
 show_images: false
 analyst_prompt: You are a research scout for an AI-assisted CAD product that generates and edits parametric CAD as code (CadQuery, Build123d, OpenSCAD). From the numbered articles, pick only those relevant to generating, editing, verifying or repairing 3D/CAD models with AI, including text/image/sketch-to-CAD, CAD code generation, design-intent representations, constraint solving and verification loops, LLM agents that drive CAD kernels or tools, design for manufacturing, B-rep/mesh generation, CAD datasets and benchmarks. Ignore unrelated uses of the acronym CAD (e.g. computer-aided diagnosis). For each pick, give a one-line takeaway and why it matters for a design-studio tool. If nothing is relevant, say so briefly.
 analyst_read_papers: true
@@ -209,6 +212,28 @@ Google Alerts feeds (`https://www.google.com/alerts/feeds/...`) are more dependa
 google_news_keywords: '"text-to-CAD", CadQuery, "AI CAD", -forex -loonie -USD/CAD'
 # searches: ("text-to-CAD" | CadQuery | "AI CAD") -forex -loonie -USD/CAD
 ```
+
+### Saving parsed papers
+MinerU's job results are temporary: Matcha downloads the markdown, deletes MinerU's copy, and by default keeps nothing, so a paper you want to re-read, re-summarize or search later would have to be parsed again (minutes of GPU time each). Set a folder to keep them:
+
+```yaml
+paper_store_dir: ~/papers     # empty = save nothing (the default)
+paper_store: picks            # picks (default): only papers the Analyst selected; all: every paper Matcha parses
+paper_store_zip: false        # also keep MinerU's zip package (markdown, structured JSON, extracted figures)
+```
+
+Each paper is saved under its arXiv ID:
+
+```
+~/papers/2610.13309v1.md    # front matter (title, source, pdf, date, parser) + MinerU's markdown
+~/papers/2610.13309v1.zip   # only with paper_store_zip: true
+```
+
+- `picks` keeps the folder small: the Analyst picks at most `analyst_max_papers` papers a day. `all` also keeps every paper parsed from `summary_feeds` and `arxiv_searches` with `use: summary`. Markdown for a paper is typically tens to a few hundred kilobytes; that is an estimate, not a measurement.
+- A paper that is already in the folder is read from disk instead of being sent to MinerU, in either mode, so the folder also survives deleting `matcha.db`. A revised arXiv version (`v2`) is a different file.
+- The zip is requested from MinerU only when `paper_store_zip` is on and the paper is being saved; if MinerU doesn't return one, the markdown is still saved. The legacy `/file_parse` API has no zip.
+- The folder is plain files, so other tools can use it: add it to a [Msty](https://msty.app) Knowledge Stack, open it as an Obsidian vault, `grep -r` it, or import files into Zotero by hand. Papers you add to Zotero are parsed again by the llm-for-zotero plugin into its own cache; Matcha does not write to Zotero or that cache.
+- Papers parsed before you turned this on are not backfilled, and summaries already cached in the database are not regenerated.
 
 ### Code and data links
 Summaries of papers, news stories and blog posts end with a `**Code/data:**` line when the source mentions a repository or dataset, so you don't have to open the article to find it. For papers this is taken from the MinerU text (references and appendices are trimmed first, so other papers' links don't leak in); for news and Alerts it comes from the article's visible text and from the targets of its links, which the plain text would otherwise lose ("the project's GitHub page"). It is a pattern match, not an LLM step, so it costs nothing extra.
