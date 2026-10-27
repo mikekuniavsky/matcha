@@ -235,6 +235,59 @@ Each paper is saved under its arXiv ID:
 - The folder is plain files, so other tools can use it: add it to a [Msty](https://msty.app) Knowledge Stack, open it as an Obsidian vault, `grep -r` it, or import files into Zotero by hand. Papers you add to Zotero are parsed again by the llm-for-zotero plugin into its own cache; Matcha does not write to Zotero or that cache.
 - Papers parsed before you turned this on are not backfilled, and summaries already cached in the database are not regenerated.
 
+### Resetting what Matcha remembers
+Matcha remembers what it has shown in a small SQLite database, `matcha.db`: every article link with its date and cached summary, plus which Analyst notifications were already sent. Anything shown on an earlier day is skipped on later runs; items shown *today* are listed again (with their cached summaries). Deleting rows is how you re-run a day from scratch.
+
+**Where it is**
+
+| OS | Default location |
+|---|---|
+| macOS | `~/Library/Application Support/brew/matcha.db` |
+| Linux | `~/.config/brew/matcha.db` |
+| Windows | `%AppData%\brew\matcha.db` |
+
+If `database_file_path` is set in `config.yaml`, use that file instead. The commands below need the `sqlite3` command-line tool (included with macOS and most Linux distributions). Quit Matcha first, and copy the file if you might want it back (`cp matcha.db matcha.db.bak`).
+
+In the commands, `DB` stands for the path above, for example:
+
+```
+DB="$HOME/Library/Application Support/brew/matcha.db"
+```
+
+**Delete only today's data.** Today's items are processed again on the next run, with fresh summaries; earlier days stay skipped.
+
+```
+sqlite3 "$DB" "DELETE FROM seen WHERE date = date('now','localtime'); DELETE FROM notifications WHERE date = date('now','localtime');"
+```
+
+**Delete only the most recent day Matcha has data for.** This is the same as above when Matcha already ran today, and otherwise removes the last day it did run (for example yesterday). The order matters: the `notifications` rows are removed first, because the second statement empties the table that supplies "the most recent day".
+
+```
+sqlite3 "$DB" "DELETE FROM notifications WHERE date = (SELECT MAX(date) FROM seen); DELETE FROM seen WHERE date = (SELECT MAX(date) FROM seen);"
+```
+
+**Delete everything** (every item is new again and every summary is regenerated, which means a full LLM and MinerU run):
+
+```
+rm "$DB"
+```
+
+Matcha creates a fresh, empty database on the next run. To clear only the memory but keep the table structure, `sqlite3 "$DB" "DELETE FROM seen; DELETE FROM notifications;"` does the same thing.
+
+**To see what is there first**
+
+```
+sqlite3 "$DB" "SELECT date, COUNT(*) FROM seen GROUP BY date ORDER BY date DESC LIMIT 7;"
+```
+
+Things to know:
+- Dates are stored in your local time (`YYYY-MM-DD`), so the commands use `date('now','localtime')`. SQLite's plain `date('now')` is UTC and can be a day off in the evening.
+- The Analyst's own bookkeeping is stored in the same table (its links end in `#analyst`), so deleting a day also makes the Analyst screen that day's articles again.
+- Deleted days vanish from `./matcha -generate-all`, which rebuilds the daily files from this database.
+- A digest file for a day you delete stays on disk until the next run rewrites it; Matcha rewrites today's file at the start of every run.
+- Saved papers (`paper_store_dir`) are separate. Papers already there are reused rather than re-parsed even after a reset, so re-running a day costs LLM time but not MinerU time. To force a re-parse, delete the `.md` (and `.zip`) files for those papers.
+- Matcha does not create lock files; there is nothing else to remove.
+
 ### Code and data links
 Summaries of papers, news stories and blog posts end with a `**Code/data:**` line when the source mentions a repository or dataset, so you don't have to open the article to find it. For papers this is taken from the MinerU text (references and appendices are trimmed first, so other papers' links don't leak in); for news and Alerts it comes from the article's visible text and from the targets of its links, which the plain text would otherwise lose ("the project's GitHub page"). It is a pattern match, not an LLM step, so it costs nothing extra.
 
