@@ -69,6 +69,9 @@ summary_prompt:
 paper_summary_prompt:
 mineru_url: http://localhost:8000
 mineru_tier:
+paper_store_dir:
+paper_store: picks
+paper_store_zip: false
 show_images: false
 analyst_prompt: You are a research scout for an AI-assisted CAD product that generates and edits parametric CAD as code (CadQuery, Build123d, OpenSCAD). From the numbered articles, pick only those relevant to generating, editing, verifying or repairing 3D/CAD models with AI, including text/image/sketch-to-CAD, CAD code generation, design-intent representations, constraint solving and verification loops, LLM agents that drive CAD kernels or tools, design for manufacturing, B-rep/mesh generation, CAD datasets and benchmarks. Ignore unrelated uses of the acronym CAD (e.g. computer-aided diagnosis). For each pick, give a one-line takeaway and why it matters for a design-studio tool. If nothing is relevant, say so briefly.
 analyst_read_papers: true
@@ -98,6 +101,9 @@ type Config struct {
 	SummaryPrompt          string
 	MinerUURL              string
 	MinerUTier             string
+	PaperStoreDir          string
+	PaperStore             string
+	PaperStoreZip          bool
 	PaperSummaryPrompt     string
 	AnalystFeeds           []string
 	AnalystPrompt          string
@@ -174,6 +180,9 @@ func LoadConfig() (*Config, error) {
 		SummaryPrompt:          viper.GetString("summary_prompt"),
 		MinerUURL:              viper.GetString("mineru_url"),
 		MinerUTier:             viper.GetString("mineru_tier"),
+		PaperStoreDir:          viper.GetString("paper_store_dir"),
+		PaperStore:             viper.GetString("paper_store"),
+		PaperStoreZip:          viper.GetBool("paper_store_zip"),
 		PaperSummaryPrompt:     viper.GetString("paper_summary_prompt"),
 		AnalystFeeds:           viper.GetStringSlice("analyst_feeds"),
 		AnalystPrompt:          viper.GetString("analyst_prompt"),
@@ -195,6 +204,7 @@ func LoadConfig() (*Config, error) {
 		cfg.DatabaseFilePath = getDefaultDBPath()
 	}
 
+	normalizePaperStore(cfg)
 	cfg.Feeds = loadFeeds(cfg, *opmlFile)
 	arxivFeeds, arxivAnalyst := loadArxivSearches()
 	cfg.Feeds = append(cfg.Feeds, arxivFeeds...)

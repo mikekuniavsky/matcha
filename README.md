@@ -113,6 +113,9 @@ summary_prompt:
 paper_summary_prompt:
 mineru_url: http://localhost:8000
 mineru_tier:
+paper_store_dir:
+paper_store: picks
+paper_store_zip: false
 show_images: false
 analyst_prompt: You are a research scout for an AI-assisted CAD product that generates and edits parametric CAD as code (CadQuery, Build123d, OpenSCAD). From the numbered articles, pick only those relevant to generating, editing, verifying or repairing 3D/CAD models with AI, including text/image/sketch-to-CAD, CAD code generation, design-intent representations, constraint solving and verification loops, LLM agents that drive CAD kernels or tools, design for manufacturing, B-rep/mesh generation, CAD datasets and benchmarks. Ignore unrelated uses of the acronym CAD (e.g. computer-aided diagnosis). For each pick, give a one-line takeaway and why it matters for a design-studio tool. If nothing is relevant, say so briefly.
 analyst_read_papers: true
@@ -210,6 +213,81 @@ google_news_keywords: '"text-to-CAD", CadQuery, "AI CAD", -forex -loonie -USD/CA
 # searches: ("text-to-CAD" | CadQuery | "AI CAD") -forex -loonie -USD/CAD
 ```
 
+### Saving parsed papers
+MinerU's job results are temporary: Matcha downloads the markdown, deletes MinerU's copy, and by default keeps nothing, so a paper you want to re-read, re-summarize or search later would have to be parsed again (minutes of GPU time each). Set a folder to keep them:
+
+```yaml
+paper_store_dir: ~/papers     # empty = save nothing (the default)
+paper_store: picks            # picks (default): only papers the Analyst selected; all: every paper Matcha parses
+paper_store_zip: false        # also keep MinerU's zip package (markdown, structured JSON, extracted figures)
+```
+
+Each paper is saved under its arXiv ID:
+
+```
+~/papers/2610.13309v1.md    # front matter (title, source, pdf, date, parser) + MinerU's markdown
+~/papers/2610.13309v1.zip   # only with paper_store_zip: true
+```
+
+- `picks` keeps the folder small: the Analyst picks at most `analyst_max_papers` papers a day. `all` also keeps every paper parsed from `summary_feeds` and `arxiv_searches` with `use: summary`. Markdown for a paper is typically tens to a few hundred kilobytes; that is an estimate, not a measurement.
+- A paper that is already in the folder is read from disk instead of being sent to MinerU, in either mode, so the folder also survives deleting `matcha.db`. A revised arXiv version (`v2`) is a different file.
+- The zip is requested from MinerU only when `paper_store_zip` is on and the paper is being saved; if MinerU doesn't return one, the markdown is still saved. The legacy `/file_parse` API has no zip.
+- The folder is plain files, so other tools can use it: add it to a [Msty](https://msty.app) Knowledge Stack, open it as an Obsidian vault, `grep -r` it, or import files into Zotero by hand. Papers you add to Zotero are parsed again by the llm-for-zotero plugin into its own cache; Matcha does not write to Zotero or that cache.
+- Papers parsed before you turned this on are not backfilled, and summaries already cached in the database are not regenerated.
+
+### Resetting what Matcha remembers
+Matcha remembers what it has shown in a small SQLite database, `matcha.db`: every article link with its date and cached summary, plus which Analyst notifications were already sent. Anything shown on an earlier day is skipped on later runs; items shown *today* are listed again (with their cached summaries). Deleting rows is how you re-run a day from scratch.
+
+**Where it is**
+
+| OS | Default location |
+|---|---|
+| macOS | `~/Library/Application Support/brew/matcha.db` |
+| Linux | `~/.config/brew/matcha.db` |
+| Windows | `%AppData%\brew\matcha.db` |
+
+If `database_file_path` is set in `config.yaml`, use that file instead. The commands below need the `sqlite3` command-line tool (included with macOS and most Linux distributions). Quit Matcha first, and copy the file if you might want it back (`cp matcha.db matcha.db.bak`).
+
+In the commands, `DB` stands for the path above, for example:
+
+```
+DB="$HOME/Library/Application Support/brew/matcha.db"
+```
+
+**Delete only today's data.** Today's items are processed again on the next run, with fresh summaries; earlier days stay skipped.
+
+```
+sqlite3 "$DB" "DELETE FROM seen WHERE date = date('now','localtime'); DELETE FROM notifications WHERE date = date('now','localtime');"
+```
+
+**Delete only the most recent day Matcha has data for.** This is the same as above when Matcha already ran today, and otherwise removes the last day it did run (for example yesterday). The order matters: the `notifications` rows are removed first, because the second statement empties the table that supplies "the most recent day".
+
+```
+sqlite3 "$DB" "DELETE FROM notifications WHERE date = (SELECT MAX(date) FROM seen); DELETE FROM seen WHERE date = (SELECT MAX(date) FROM seen);"
+```
+
+**Delete everything** (every item is new again and every summary is regenerated, which means a full LLM and MinerU run):
+
+```
+rm "$DB"
+```
+
+Matcha creates a fresh, empty database on the next run. To clear only the memory but keep the table structure, `sqlite3 "$DB" "DELETE FROM seen; DELETE FROM notifications;"` does the same thing.
+
+**To see what is there first**
+
+```
+sqlite3 "$DB" "SELECT date, COUNT(*) FROM seen GROUP BY date ORDER BY date DESC LIMIT 7;"
+```
+
+Things to know:
+- Dates are stored in your local time (`YYYY-MM-DD`), so the commands use `date('now','localtime')`. SQLite's plain `date('now')` is UTC and can be a day off in the evening.
+- The Analyst's own bookkeeping is stored in the same table (its links end in `#analyst`), so deleting a day also makes the Analyst screen that day's articles again.
+- Deleted days vanish from `./matcha -generate-all`, which rebuilds the daily files from this database.
+- A digest file for a day you delete stays on disk until the next run rewrites it; Matcha rewrites today's file at the start of every run.
+- Saved papers (`paper_store_dir`) are separate. Papers already there are reused rather than re-parsed even after a reset, so re-running a day costs LLM time but not MinerU time. To force a re-parse, delete the `.md` (and `.zip`) files for those papers.
+- Matcha does not create lock files; there is nothing else to remove.
+
 ### Code and data links
 Summaries of papers, news stories and blog posts end with a `**Code/data:**` line when the source mentions a repository or dataset, so you don't have to open the article to find it. For papers this is taken from the MinerU text (references and appendices are trimmed first, so other papers' links don't leak in); for news and Alerts it comes from the article's visible text and from the targets of its links, which the plain text would otherwise lose ("the project's GitHub page"). It is a pattern match, not an LLM step, so it costs nothing extra.
 
@@ -254,7 +332,7 @@ openai_model: gpt-4o                # papers are long; use a large-context model
 ```
 
 Matcha supports two MinerU API generations and picks one by probing `GET /v1/health`:
-- **MinerU 3.x job API** (`/v1/parse/jobs`): Matcha creates a markdown job with the paper's PDF URL, polls it (up to 15 minutes), downloads the markdown, and deletes the output file. If the server can't fetch the URL itself, Matcha downloads the PDF and uploads it instead. Only one job runs at a time on a default server; a `429` is retried.
+- **MinerU 3.x job API** (`/v1/parse/jobs`): for arXiv papers Matcha downloads the PDF itself (following redirects, identifying itself, and pacing requests to arXiv) and uploads it, because MinerU cannot fetch arXiv's PDF URLs on its own: they have no `.pdf` extension (MinerU rejects the file name as an unsupported type) and arXiv redirects the `.pdf` form, which MinerU's downloader does not follow. Other URLs that end in `.pdf` are tried as a URL job first, with the same upload as a fallback. Matcha then creates a markdown job, polls it (up to 15 minutes), downloads the markdown, and deletes the output file. Only one job runs at a time on a default server; a `429` is retried.
 - **Older `mineru-api`** (`POST /file_parse`): used when `/v1/health` isn't available.
 
 Before summarizing, Matcha drops the references, acknowledgments and appendices (everything from a `References`/`Appendix`-style heading in the second half of the paper) so the character budget goes to the body and results. It also collects code and data links from the body and lists them under the summary as `Code/data:` (see below).
