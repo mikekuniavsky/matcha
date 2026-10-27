@@ -66,7 +66,7 @@ func TestSaveAndLoadPaper(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw, _ := os.ReadFile(filepath.Join(cfg.PaperStoreDir, "2610.13309v1.md"))
-	for _, want := range []string{"---\ntitle: \"A \\\"quoted\\\" title\"\n", "source: " + link, "pdf: https://arxiv.org/pdf/2610.13309v1.pdf", "parser: MinerU\n---\n\n# Body"} {
+	for _, want := range []string{"---\ntitle: \"A \\\"quoted\\\" title\"\n", "source: " + link, "pdf: https://arxiv.org/pdf/2610.13309v1", "parser: MinerU\n---\n\n# Body"} {
 		if !strings.Contains(string(raw), want) {
 			t.Errorf("saved file missing %q:\n%s", want, raw)
 		}
@@ -82,11 +82,17 @@ func TestSaveAndLoadPaper(t *testing.T) {
 
 // End to end against the fake MinerU: parse and save, then reuse the stored copy without MinerU.
 func TestGetPaperMarkdownStoresAndReuses(t *testing.T) {
-	oldPoll := mineruPollInterval
+	oldPoll, oldDownload := mineruPollInterval, downloadPDF
 	mineruPollInterval = time.Millisecond
-	defer func() { mineruPollInterval = oldPoll }()
+	downloadPDF = func(string) ([]byte, error) { return []byte("%PDF-1.4 fake"), nil }
+	defer func() { mineruPollInterval, downloadPDF = oldPoll, oldDownload }()
 	var urlJobs int
 	srv := fakeMinerU(t, true, &urlJobs)
+	defer func() {
+		if urlJobs != 0 {
+			t.Errorf("arXiv papers must not use URL jobs (MinerU can't fetch them), got %d", urlJobs)
+		}
+	}()
 	cfg := &Config{MinerUURL: srv.URL, MinerUTier: "basic", PaperStoreDir: t.TempDir(), PaperStore: "picks", PaperStoreZip: true}
 	link := "https://arxiv.org/abs/2610.13309v1"
 

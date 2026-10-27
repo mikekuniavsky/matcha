@@ -11,9 +11,9 @@ import (
 
 func TestArxivPDFURL(t *testing.T) {
 	for in, want := range map[string]string{
-		"https://arxiv.org/abs/2401.01234":        "https://arxiv.org/pdf/2401.01234.pdf",
-		"https://arxiv.org/abs/2401.01234v2":      "https://arxiv.org/pdf/2401.01234v2.pdf",
-		"http://www.arxiv.org/pdf/2401.01234.pdf": "https://arxiv.org/pdf/2401.01234.pdf",
+		"https://arxiv.org/abs/2401.01234":        "https://arxiv.org/pdf/2401.01234",
+		"https://arxiv.org/abs/2401.01234v2":      "https://arxiv.org/pdf/2401.01234v2",
+		"http://www.arxiv.org/pdf/2401.01234.pdf": "https://arxiv.org/pdf/2401.01234",
 	} {
 		got, ok := arxivPDFURL(in)
 		if !ok || got != want {

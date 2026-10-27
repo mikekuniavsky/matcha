@@ -22,9 +22,10 @@ func arxivPDFURL(link string) (string, bool) {
 	if m == nil {
 		return "", false
 	}
-	// Keep the .pdf extension: MinerU names a URL-sourced file after the last path segment and
-	// rejects it as "Unsupported file type" when there is no recognizable extension.
-	return "https://arxiv.org/pdf/" + m[1] + ".pdf", true
+	// The canonical form has no extension (arXiv 301-redirects /pdf/<id>.pdf to it). MinerU can't
+	// fetch it by URL (it names the file after the last path segment and rejects "<id>" as an
+	// unsupported type, and it doesn't follow redirects), so PDFToOutput downloads and uploads it.
+	return "https://arxiv.org/pdf/" + m[1], true
 }
 
 // hasPDFExtension reports whether the URL's path ends in .pdf.
@@ -111,9 +112,20 @@ func (m *MinerUClient) PDFToOutput(pdfURL string, wantZip bool) (MinerUOutput, e
 	return m.v1Parse(map[string]string{"type": "file_id", "file_id": fileID}, wantZip)
 }
 
-func downloadPDF(pdfURL string) ([]byte, error) {
-	dl := &http.Client{Timeout: 2 * time.Minute}
-	resp, err := dl.Get(pdfURL)
+// downloadPDF fetches a PDF; a variable so tests can replace it. It follows redirects, identifies
+// Matcha, and spaces out requests to arXiv hosts like the feed fetcher does.
+var downloadPDF = func(pdfURL string) ([]byte, error) {
+	u, err := url.Parse(pdfURL)
+	if err != nil {
+		return nil, fmt.Errorf("download pdf: %w", err)
+	}
+	politeWait(u.Hostname())
+	req, err := http.NewRequest(http.MethodGet, pdfURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("download pdf: %w", err)
+	}
+	req.Header.Set("User-Agent", feedUA)
+	resp, err := (&http.Client{Timeout: 2 * time.Minute}).Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("download pdf: %w", err)
 	}
@@ -124,6 +136,9 @@ func downloadPDF(pdfURL string) ([]byte, error) {
 	pdf, err := io.ReadAll(io.LimitReader(resp.Body, 50<<20))
 	if err != nil {
 		return nil, fmt.Errorf("download pdf: %w", err)
+	}
+	if !bytes.HasPrefix(bytes.TrimLeft(pdf, " \r\n\t"), []byte("%PDF")) {
+		return nil, fmt.Errorf("download pdf: %s did not return a PDF", pdfURL)
 	}
 	return pdf, nil
 }

@@ -332,7 +332,7 @@ openai_model: gpt-4o                # papers are long; use a large-context model
 ```
 
 Matcha supports two MinerU API generations and picks one by probing `GET /v1/health`:
-- **MinerU 3.x job API** (`/v1/parse/jobs`): Matcha creates a markdown job with the paper's PDF URL, polls it (up to 15 minutes), downloads the markdown, and deletes the output file. If the server can't fetch the URL itself, Matcha downloads the PDF and uploads it instead. Only one job runs at a time on a default server; a `429` is retried.
+- **MinerU 3.x job API** (`/v1/parse/jobs`): for arXiv papers Matcha downloads the PDF itself (following redirects, identifying itself, and pacing requests to arXiv) and uploads it, because MinerU cannot fetch arXiv's PDF URLs on its own: they have no `.pdf` extension (MinerU rejects the file name as an unsupported type) and arXiv redirects the `.pdf` form, which MinerU's downloader does not follow. Other URLs that end in `.pdf` are tried as a URL job first, with the same upload as a fallback. Matcha then creates a markdown job, polls it (up to 15 minutes), downloads the markdown, and deletes the output file. Only one job runs at a time on a default server; a `429` is retried.
 - **Older `mineru-api`** (`POST /file_parse`): used when `/v1/health` isn't available.
 
 Before summarizing, Matcha drops the references, acknowledgments and appendices (everything from a `References`/`Appendix`-style heading in the second half of the paper) so the character budget goes to the body and results. It also collects code and data links from the body and lists them under the summary as `Code/data:` (see below).
