@@ -44,7 +44,10 @@ of it. `TestDefaultConfigParses` checks it is valid YAML (a `: ` inside a plain 
 - **ChinaXiv** (Chinese arXiv) documents an OAI-PMH endpoint, but it answered "no right to access" from the author's
   machine; not implemented. OAI-PMH has no keyword search, so it would need date-based harvesting plus local filtering.
 - Platform note: a laptop with the lid closed sleeps even on AC, and `cron`/`launchd` do not run during sleep. DarkWake
-  windows are about 3 minutes. Matcha has no scheduler of its own and creates no lock files.
+  windows are about 3 minutes. The Go binary has no scheduler and creates no lock files;
+  `scripts/macos/` (install/uninstall/run-daily) adds a LaunchAgent (00:05 plus a 15-minute catch-up), a
+  `pmset repeat wakeorpoweron` wake (sudo) and `caffeinate -i -s`, with a once-a-day stamp file. The author's own Mac runs
+  Matcha from a separate LaunchAgent outside this repo with the same values; the repo scripts are not verified on a real Mac.
 
 ## Verified by the author vs not
 Reported working: MinerU job flow and paper summaries, Google News decoding, similar-story clustering.
@@ -59,7 +62,4 @@ the arXiv download-and-upload path, `-check-feeds`. Say so when describing them.
 - Do not put API keys, Alert feed URLs or personal paths in the repo.
 
 ## Open items
-- Scheduling on macOS: wake the Mac shortly before the run (`sudo pmset repeat wakeorpoweron ...`) and run Matcha under
-  `caffeinate -i -s`. Needs the run time and the launcher type from the author. Possible Matcha-side helpers: a
-  `-once-per-day` flag and a start/finish footer in each digest.
 - Keying seen items on the unwrapped publisher URL so one article from two Alerts is listed once.
