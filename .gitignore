@@ -2,6 +2,8 @@
 .DS_Store
 .lite_project.lua
 *.md
+!README.md
+!CLAUDE.md
 .vogte/
 
 /bin/
