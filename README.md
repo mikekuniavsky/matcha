@@ -139,7 +139,7 @@ paper_store_dir:
 paper_store: picks
 paper_store_zip: false
 show_images: false
-analyst_prompt: You are a research scout for an AI-assisted CAD product that generates and edits parametric CAD as code (CadQuery, Build123d, OpenSCAD). From the numbered articles, pick only those relevant to generating, editing, verifying or repairing 3D/CAD models with AI, including text/image/sketch-to-CAD, CAD code generation, design-intent representations, constraint solving and verification loops, LLM agents that drive CAD kernels or tools, design for manufacturing, B-rep/mesh generation, CAD datasets and benchmarks. Ignore unrelated uses of the acronym CAD (e.g. computer-aided diagnosis). For each pick, give a one-line takeaway and why it matters for a design-studio tool. If nothing is relevant, say so briefly.
+analyst_prompt: You are a strict research scout for an AI-assisted CAD product that generates and edits parametric CAD as code (CadQuery, Build123d, OpenSCAD). Most days only a few of the numbered articles qualify, often none. Pick an article only if its title or abstract is directly about generating, editing, verifying or repairing 3D CAD models with AI (text/image/sketch-to-CAD, CAD code generation, B-rep or CAD-ready mesh generation), design intent or geometric constraints in CAD, LLM agents that drive CAD kernels or tools, CAD datasets and benchmarks, or AI for design for manufacturing. Do not pick an article by analogy, such as general code generation, theorem proving, robotics, simulation, image or video generation, 3D scene reconstruction, or optimization of unrelated systems, unless it explicitly applies the work to CAD or mechanical part design. Ignore unrelated uses of the acronym CAD (computer-aided diagnosis or detection). Pick at most 8. For each pick, give a one-line takeaway and why it matters for a design-studio tool.
 analyst_read_papers: true
 analyst_max_papers: 3
 analyst_model:
@@ -185,7 +185,7 @@ arxiv_searches:
 ### Analyst LLM Feature
 The Analyst feature enables you to gather articles from specified feeds and analyze them using a prompt sent to a language model like GPT-4o (default). The result is included in the daily digest under an Analysis section. You write on your analyst_prompt setting what do you want the analyst to do on your behalf, for example picking relevant news to your liking (example: a cybersecurity expert interested only in certain type of attack), or having an investing analyst suggesting investment opportunities, etc. 
 
-The default config ships an AI CAD research scout. It reads a broad arXiv search (all categories, not just cs.GR/cs.CV) defined under `arxiv_searches`. The Analyst sees at most 20 items per feed (`defaultLimit`) and does no filtering itself, so the search query, not the category, is what narrows the input. Another example, an analyst finding investment opportunities:
+The default config ships an AI CAD research scout. It reads a broad arXiv search (all categories, not just cs.GR/cs.CV) defined under `arxiv_searches`. The Analyst reads only the first N items of each feed (the `URL N` limit, default 20; 30 for `arxiv_searches` with `use: analyst`) and does no filtering itself, so the feed or search query, not the model, decides what it can see. Another example, an analyst finding investment opportunities:
 
 ```yaml
 openai_api_key: sk-xxxxxxxxxxxxxxxxx
@@ -203,6 +203,25 @@ Snippet of sample output (as an investment analyst):
 
 #### Analyst output format
 When the articles are numbered (the default, unless `notification_trigger` is set), Matcha appends a strict format to your `analyst_prompt`: one bullet per relevant article, written as `- [n] <takeaway>. Why it matters: <reason>.`, or `No relevant articles today.` Matcha then replaces each `[n]` with the article's real title as a bold link, so the Daily Analysis names every paper and links to it without trusting the model to copy titles or URLs. Keep your own prompt about *what* to pick; the format is handled for you.
+
+Some local models running in thinking mode (Gemma's thinking channel, Qwen or DeepSeek `<think>` blocks) can return their reasoning as part of the answer, which used to show up in the digest as a draft list followed by the real one. Matcha keeps only the text after the last `<channel|>` or `</think>` marker, for the Analyst and for summaries.
+
+#### Feed limits and arXiv category feeds
+The limit cuts a feed *before* the model sees it. That matters for arXiv's category RSS feeds (`https://rss.arxiv.org/rss/cs.CV`): each lists the whole latest announcement, often 300 to 500 papers, so `cs.CV 30` screens only the first 30 and the rest of the day's papers are never shown to the Analyst. Run `./matcha -check-feeds` to see how many items each analyst feed returns. Your options:
+- **Keep the broad sweep and raise the limit** (`https://rss.arxiv.org/rss/cs.CV 500`). The Analyst then sees every paper in the category, at the cost of a much longer prompt: roughly 300 tokens per paper (title plus abstract), so 500 papers is about 150k tokens. Check that your model's context window holds it (with Ollama, `num_ctx`), or the input is silently cut.
+- **Narrow with a search** (`arxiv_searches` with `use: analyst`). The query picks papers that mention your terms in any category, and the Analyst screens those. Fewer papers, all of them plausible.
+- **Both:** one broad category feed with a high limit plus a search, if your model and hardware can take the prompt.
+
+The category RSS feeds are also empty between announcements (weekends, holidays, and sometimes for a while after arXiv's daily update). An empty analyst feed is reported in the Daily Analysis note as `N of M feeds returned no items`; run Matcha again later to pick up the day's papers. Items first screened today are screened again on a same-day rerun.
+
+#### Writing an analyst prompt
+With a broad input, the model's habit is to find a reason why almost everything matters ("it validates the concept of…"). A prompt that keeps the picks useful:
+- **Say how rare a pick is:** "most days only a few articles qualify, often none."
+- **Name the topics positively and the near misses explicitly.** Papers on code generation, robotics, simulation, image editing or 3D reconstruction are near misses for a CAD tool; tell the model not to pick them by analogy unless they apply the work to CAD.
+- **Cap the number of picks** ("pick at most 8"), so a noisy day can't produce a list of 25.
+- **Ask about the title and abstract**, not about what the work could be used for.
+
+The default `analyst_prompt` above follows these rules. Small local models (such as a 4B model) are noticeably more permissive than large ones; a larger `analyst_model` is the other lever if the picks are still loose.
 
 #### Analyst picks papers for full-text summaries
 With `analyst_read_papers: true`, the Analyst numbers the articles it sees and ends its answer with a `SELECTED:` line naming up to `analyst_max_papers` (default 3) worth reading in full. Matcha then parses each selected arXiv paper with MinerU (see "Paper summaries with MinerU"), summarizes it, and lists it under "Papers worth reading in full" right after the analysis. Selections are resolved by number against the articles actually sent, so the model can't pick a paper it wasn't shown. Non-arXiv picks stay in the analysis text only. Feeds in `analyst_feeds` accept the same `URL N` limit syntax as `feeds` (default 20).
@@ -332,7 +351,7 @@ With `show_empty_sections: true` (the default), a section that has nothing to sh
 - `No items returned by this feed.` (for `rss.arxiv.org` feeds this adds that arXiv's RSS is empty on days without announcements, such as weekends and holidays; the arXiv *search* feeds from `arxiv_searches` use the query API and are not weekend-limited)
 - `No new items: 5 read, 5 already seen on earlier days.` (also counts items already shown above in the same digest)
 - `⚠️ Could not read this feed: <error>`
-- For the Daily Analysis: `No new articles to screen: …` (with a warning if some analyst feeds could not be read), or a note if the model returned no analysis.
+- For the Daily Analysis: `No new articles to screen: …` (with a warning if some analyst feeds could not be read or returned no items), or a note if the model returned no analysis. When there is an analysis but some analyst feeds were empty, a line under it says `N of M analyst feeds returned no items`.
 
 A section that does have new items ends with a short `Not shown again: N already seen on earlier days` line when older items were left out, so you can tell what a manual look at the same feed would additionally show.
 

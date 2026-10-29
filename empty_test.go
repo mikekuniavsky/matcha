@@ -127,3 +127,52 @@ func TestBuildGoogleNewsQuery(t *testing.T) {
 		}
 	}
 }
+
+const oneItemRSS = `<?xml version="1.0"?><rss version="2.0"><channel><title>Papers</title><link>https://p.example</link>
+<item><title>Text-to-CAD with agents</title><link>https://p.example/1</link><description>CadQuery code</description></item></channel></rss>`
+
+func TestAnalystNoteCountsEmptyFeeds(t *testing.T) {
+	empty, seen := feedServer(t, emptyRSS), feedServer(t, oneItemRSS)
+	store := testStore(t)
+	if _, err := store.db.Exec("INSERT INTO seen(url, date, summary, title, feed_title) values(?,?,?,?,?)", "https://p.example/1"+analystTag, "2000-01-01", "", "t", "Papers"); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &Config{ShowEmptySections: true, AnalystFeeds: []string{empty.URL, seen.URL, empty.URL}, AnalystPrompt: "pick"}
+	w := &captureWriter{}
+	RunAnalyst(cfg, store, NewLLMClient(cfg), w, gofeed.NewParser())
+	if !strings.Contains(w.out, "1 read from 3 feeds, 1 already analyzed before; ⚠️ 2 of 3 feeds returned no items") || strings.Contains(w.out, "could not be read") {
+		t.Errorf("unexpected analyst output:\n%s", w.out)
+	}
+}
+
+func TestAnalysisNotesEmptyFeedsAndDropsLeakedReasoning(t *testing.T) {
+	llm := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"- [1] Draft pick. Why it matters: draft.\n6. Final polish.<channel|>- [1] Agents write CadQuery. Why it matters: direct fit.\nSELECTED: none"}}]}`))
+	}))
+	t.Cleanup(llm.Close)
+	empty, items := feedServer(t, emptyRSS), feedServer(t, oneItemRSS)
+	cfg := &Config{ShowEmptySections: true, AnalystFeeds: []string{empty.URL, items.URL}, AnalystPrompt: "pick",
+		OpenAIBaseURL: llm.URL, AnalystReadPapers: true, AnalystMaxPapers: 3}
+	w := &captureWriter{}
+	RunAnalyst(cfg, testStore(t), NewLLMClient(cfg), w, gofeed.NewParser())
+	if strings.Contains(w.out, "Draft pick") || strings.Contains(w.out, "<channel|>") || !strings.Contains(w.out, "Agents write CadQuery") {
+		t.Errorf("leaked reasoning not removed:\n%s", w.out)
+	}
+	if !strings.Contains(w.out, "1 of 2 analyst feeds returned no items") {
+		t.Errorf("missing empty-feed line:\n%s", w.out)
+	}
+}
+
+func TestStripReasoning(t *testing.T) {
+	for in, want := range map[string]string{
+		"plain answer":                        "plain answer",
+		"<think>hmm</think>\n\nanswer":        "answer",
+		"<|channel>thought\nx<channel|>final": "final",
+		"draft<channel|>a<channel|> last ":    "last",
+	} {
+		if got := stripReasoning(in); got != want {
+			t.Errorf("stripReasoning(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
