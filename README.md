@@ -45,6 +45,28 @@ Matcha is a daily digest generator for your RSS feeds and interested topics/keyw
 1. Since Matcha generates markdown, any markdown reader should do the job. Currently it has been tested on [Obsidian](https://obsidian.md/) so you need a markdown reader before moving on, unless you will use terminal mode (-t option), then a markdown reader is not needed.
 2. **Download the [pre-built Matcha binary](https://github.com/piqoni/matcha/releases)** based on your OS and after executing (if on mac/linux run `chmod +x matcha-darwin-amd64` to make it executable), a sample `config.yml` will be generated, which you can add in your rss feeds, keywords and the `markdown_dir_path` where you want the markdown files to be generated (if left empty, it will generate the daily digest on current dir).
 3. You can either execute matcha on-demand (a terminal alias) or set a cron to run matcha as often as you want. Even if you set it to execute every hour, matcha will still generate daily digests, one file per day, and will add more articles to it if new articles are published throughout the day.
+### Running daily on a Mac that sleeps
+A Mac that is asleep does not run `launchd` or `cron` jobs, and plugged in with the lid closed it sleeps too (Clamshell Sleep). It only wakes briefly for DarkWake maintenance windows of about 3 minutes, which is not long enough for a digest with paper summaries. Two pieces fix this: a scheduled wake a few minutes before the run, and running Matcha under `caffeinate -i -s` so the Mac stays awake until it finishes (`-s` only holds while on AC power).
+
+`scripts/macos/install-schedule.sh` sets both up:
+```
+go build -o matcha .
+scripts/macos/install-schedule.sh --time 00:05      # run at 00:05, wake the Mac at 00:02
+```
+- It writes `~/Library/LaunchAgents/io.matcha.daily.plist` and loads it. The job starts at `--time` and again every 15 minutes as a catch-up, and runs `scripts/macos/run-daily.sh`, which runs `./matcha` at most once a day, only on AC power and only once the network answers (it waits up to a minute after a wake). The last successful run date is kept in `~/Library/Application Support/Matcha/last-run`; output goes to `~/Library/Logs/matcha-daily.log`.
+- It then runs `sudo pmset repeat wakeorpoweron MTWRFSU <time minus --wake-lead>` (default lead 3 minutes), so **it asks for your password**. It prints `pmset -g sched` before and after. macOS keeps a single repeating wake/power-on event, so this replaces any you already had.
+- Options: `--wake-lead N` minutes (1 to 60), `--dir PATH` (folder with the `matcha` binary and `config.yaml`, default the repo), `--no-wake` (skip the `pmset` step and sudo), `--dry-run` (print the plist and commands, change nothing).
+
+If you already start Matcha from your own LaunchAgent or script, you do not need the installer: wrap the job's `ProgramArguments` in `/usr/bin/caffeinate -i -s ...`, give it a `StartCalendarInterval` at the run time (keep any `StartInterval` catch-up), and run `sudo pmset repeat wakeorpoweron MTWRFSU HH:MM:SS` a few minutes earlier. Remove an old LaunchAgent that also runs Matcha so it does not run twice.
+
+To undo:
+```
+scripts/macos/uninstall-schedule.sh               # unloads and deletes the LaunchAgent, then: sudo pmset repeat cancel
+scripts/macos/uninstall-schedule.sh --keep-wake   # leave the pmset wake in place
+pmset -g sched                                    # check what is still scheduled
+```
+`sudo pmset repeat cancel` removes every repeating power event, not just Matcha's. One-off wakes from `pmset schedule` are listed separately and are cancelled with `sudo pmset schedule cancel <n>`.
+
 ### Other ways to install
 #### Homebrew (macOS)
 ```
