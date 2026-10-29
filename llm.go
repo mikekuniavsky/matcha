@@ -91,8 +91,9 @@ func (l *LLMClient) summarize(text, prompt, defaultPrompt string, maxCharacters 
 		return ""
 	}
 
-	fmt.Printf("  summarized %d characters with %q -> %d characters\n", len(text), model, len(resp.Choices[0].Message.Content))
-	return resp.Choices[0].Message.Content
+	reply := stripReasoning(resp.Choices[0].Message.Content)
+	fmt.Printf("  summarized %d characters with %q -> %d characters\n", len(text), model, len(reply))
+	return reply
 }
 
 func (l *LLMClient) Analyze(articles []string, promptSuffix string) string {
@@ -120,5 +121,22 @@ func (l *LLMClient) Analyze(articles []string, promptSuffix string) string {
 		fmt.Printf("Analysis failed: %v\n", err)
 		return ""
 	}
-	return resp.Choices[0].Message.Content
+	if len(resp.Choices) == 0 {
+		return ""
+	}
+	return stripReasoning(resp.Choices[0].Message.Content)
+}
+
+// reasoningEnds are markers after which some local models (Gemma's thinking channel, Qwen/DeepSeek
+// <think> blocks) put their final answer when the server passes the reasoning through as text.
+var reasoningEnds = []string{"<channel|>", "</think>"}
+
+// stripReasoning drops leaked reasoning: everything up to the last end-of-reasoning marker.
+func stripReasoning(reply string) string {
+	for _, end := range reasoningEnds {
+		if i := strings.LastIndex(reply, end); i >= 0 {
+			reply = reply[i+len(end):]
+		}
+	}
+	return strings.TrimSpace(reply)
 }

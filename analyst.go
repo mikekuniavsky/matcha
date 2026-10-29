@@ -72,6 +72,9 @@ func RunAnalyst(cfg *Config, store *Storage, llm *LLMClient, writer Writer, fp *
 	if analysis != "" {
 		writer.Write("\n## Daily Analysis:\n")
 		writer.Write(analysis + "\n")
+		if stats.empty > 0 && cfg.ShowEmptySections {
+			writer.Write(writer.WriteSummary(fmt.Sprintf("_⚠️ %d of %d analyst feeds returned no items, so the analysis covers only the rest (see %s)._", stats.empty, stats.feeds, emptyFeedHint), true))
+		}
 		writeSelectedPapers(cfg, store, llm, writer, selected)
 
 		if cfg.NotificationTrigger != "" &&
@@ -179,7 +182,10 @@ func writeSelectedPapers(cfg *Config, store *Storage, llm *LLMClient, w Writer, 
 	}
 }
 
-type analystStats struct{ feeds, failed, read, alreadySeen int }
+type analystStats struct{ feeds, failed, empty, read, alreadySeen int }
+
+// emptyFeedHint points at the usual cause of an empty analyst feed.
+const emptyFeedHint = "`./matcha -check-feeds`; arXiv's category RSS feeds are empty between daily announcements, so a later run usually finds items"
 
 func (s analystStats) note() string {
 	if s.failed == s.feeds && s.feeds > 0 {
@@ -188,6 +194,9 @@ func (s analystStats) note() string {
 	note := fmt.Sprintf("_No new articles to screen: %d read from %d feeds, %d already analyzed before", s.read, s.feeds-s.failed, s.alreadySeen)
 	if s.failed > 0 {
 		note += fmt.Sprintf("; ⚠️ %d feeds could not be read", s.failed)
+	}
+	if s.empty > 0 {
+		note += fmt.Sprintf("; ⚠️ %d of %d feeds returned no items (see %s)", s.empty, s.feeds, emptyFeedHint)
 	}
 	return note + "._"
 }
@@ -204,6 +213,12 @@ func collectArticlesForAnalysis(cfg *Config, store *Storage, fp *gofeed.Parser) 
 		if err != nil {
 			log.Printf("Analyst: error parsing %s: %v", feedURL, err)
 			stats.failed++
+			continue
+		}
+
+		if len(feed.Items) == 0 {
+			log.Printf("Analyst: %s returned no items", feedURL)
+			stats.empty++
 			continue
 		}
 

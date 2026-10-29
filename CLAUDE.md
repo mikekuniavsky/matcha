@@ -40,6 +40,10 @@ of it. `TestDefaultConfigParses` checks it is valid YAML (a `: ` inside a plain 
 - **arXiv API** asks for one request per 3 s; `429` was seen in practice.
 - **Google News** `news.google.com/rss/articles/CBMi...` IDs are encrypted and no longer redirect. `googlenews.go` asks
   Google's undocumented `batchexecute` endpoint for the publisher URL; it may break without notice.
+- **arXiv category RSS** (`rss.arxiv.org/rss/cs.CV`) lists a whole announcement (300 to 500 items) and is empty between
+  announcements; the `URL N` limit cuts it before the Analyst sees it. Empty analyst feeds are reported in the Analyst note.
+- **gemma4 via Ollama** has leaked its thinking into the reply (a draft list, then `<channel|>`, then the answer).
+  `stripReasoning` in `llm.go` keeps the text after the last `<channel|>` or `</think>`.
 - **llm-for-zotero** keeps its own MinerU cache keyed by Zotero attachment ID; Matcha's paper store is separate.
 - **ChinaXiv** (Chinese arXiv) documents an OAI-PMH endpoint, but it answered "no right to access" from the author's
   machine; not implemented. OAI-PMH has no keyword search, so it would need date-based harvesting plus local filtering.
