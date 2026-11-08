@@ -42,6 +42,8 @@ rc=$?
 if [ "$rc" = 0 ]; then
 	mkdir -p "$(dirname "$STAMP")"
 	echo "$today" >"$STAMP"
+	# A qmd failure is only logged: the digest is written and today's stamp is kept.
+	caffeinate -i -s bash "$(dirname "$0")/qmd-refresh.sh" || log "qmd refresh failed"
 fi
 log "Matcha exited with $rc"
 exit "$rc"
