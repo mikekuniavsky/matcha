@@ -99,23 +99,18 @@ analysts:                            # extra analysts, each with its own feeds, 
       independent brands from a product idea to a manufacturable design and quotes from contract
       manufacturers, for runs of about 1,000 to 10,000 units. The numbered items are forum posts and
       news. Most days only a few qualify, often none. Pick an item only if it is about a physical
-      product (not apps, courses or other digital products) and shows one of these.
-      PAIN, a creator, small brand or first-time founder describing trouble making a physical product,
-      such as finding or vetting a manufacturer, minimum order quantities, quotes, prototype cost or
-      delays, needing CAD or an industrial designer, tooling cost, quality problems, or small-run
-      economics that do not work.
-      INTENT, a creator or independent brand saying they want to launch their own physical product
-      or product line beyond print-on-demand merch, or asking how to start.
-      MARKET, a creator-led or small brand launching or funding a manufactured product, a crowdfunded
-      product delayed by manufacturing, or a company offering design, sourcing or small-batch
-      manufacturing to creators and small brands.
-      COUNTER, evidence against the idea, such as creators saying existing services already solve
-      this, that they do not want their own products, or that small runs are easy and cheap.
+      product (not apps, courses or other digital products) and shows one of these:
+      a creator, small brand or first-time founder describing trouble making a physical product
+      (finding or vetting a manufacturer, minimum order quantities, quotes, prototype cost or delays,
+      needing CAD or an industrial designer, tooling cost, quality problems, small-run economics);
+      a creator or independent brand wanting to launch their own physical product or product line
+      beyond print-on-demand merch; a creator-led or small brand launching, funding or delaying a
+      manufactured product, or a company offering design, sourcing or small-batch manufacturing to
+      them; or evidence against the idea, such as creators saying existing services already solve
+      this or that small runs are easy and cheap.
       Do not pick general business or marketing advice, dropshipping or reselling existing products,
       print-on-demand shirts and mugs with no custom product, software, or large companies' product news.
-      Pick at most 8. Begin each takeaway with the label and a strength from 1 to 3, for example
-      "PAIN 3", where 3 means a first-hand account with specifics such as costs, quantities,
-      timelines or audience size. For a post, quote a few of the poster's own words.
+      Pick at most 8. For a post, quote a few of the poster's own words.
 `
 
 type Config struct {

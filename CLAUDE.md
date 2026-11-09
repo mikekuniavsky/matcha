@@ -25,7 +25,7 @@ of it. `TestDefaultConfigParses` checks it is valid YAML (a `: ` inside a plain 
   with `SELECTED: ..` and picked arXiv papers get full-text summaries.
 - `analysts.go`: `analysts`, extra named analysts (own feeds, `google_news` queries, prompt, model, `max_chars`), each its own
   section, run by `RunAnalyst` after the main one. Bookkeeping `<url>#analyst:<slug>`. Default: "Creator manufacturing
-  demand" (Reddit/HN/trade press/Google News; picks tagged PAIN/INTENT/MARKET/COUNTER 1-3). Feed URLs unverified.
+  demand" (Reddit/HN/trade press/Google News; also asks for counter-evidence). Feed URLs unverified.
 - `arxiv.go`: `arxiv_searches` -> arXiv query-API feed URLs (terms/categories/exclude), sections titled `arXiv: <name>`.
 - `mineru.go`, `mineru_tasks.go`, `paper.go`, `paperstore.go`: MinerU client (4.1 Tasks API in `mineru_tasks.go`), reference/appendix trimming, code-link extraction,
   on-disk paper store (`paper_store_dir`).

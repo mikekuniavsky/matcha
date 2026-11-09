@@ -29,7 +29,7 @@ func TestDefaultConfigHasDemandAnalyst(t *testing.T) {
 		t.Fatalf("got %d analysts, warnings %v", len(analysts), warnings)
 	}
 	a := analysts[0]
-	if a.Name != "Creator manufacturing demand" || !strings.Contains(a.Prompt, "PAIN") || !strings.Contains(a.Prompt, "COUNTER") || a.MaxChars != 600 {
+	if a.Name != "Creator manufacturing demand" || !strings.Contains(a.Prompt, "minimum order quantities") || !strings.Contains(a.Prompt, "evidence against") || a.MaxChars != 600 {
 		t.Errorf("unexpected analyst: %+v", a)
 	}
 	if len(a.Feeds) == 0 || len(a.GoogleNews) == 0 || len(a.allFeeds()) != len(a.Feeds)+len(a.GoogleNews) {
@@ -105,7 +105,7 @@ func TestNamedAnalystRunsWithItsOwnPromptAndSection(t *testing.T) {
 		body, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(body, &req)
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"- [1] PAIN 3: \"quotes are all over the place\". Why it matters: first-hand MOQ pain."}}]}`))
+		w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"- [1] Poster says \"quotes are all over the place\". Why it matters: first-hand MOQ pain."}}]}`))
 	}))
 	t.Cleanup(llm.Close)
 
@@ -126,7 +126,7 @@ func TestNamedAnalystRunsWithItsOwnPromptAndSection(t *testing.T) {
 		t.Errorf("prompt:\n%s", prompt)
 	}
 	if strings.Contains(w.out, "Daily Analysis") || !strings.Contains(w.out, "## Creator demand:") ||
-		!strings.Contains(w.out, "**[Factory wants a 5,000 unit MOQ for my first product](https://r.example/post1)** PAIN 3") {
+		!strings.Contains(w.out, "**[Factory wants a 5,000 unit MOQ for my first product](https://r.example/post1)** Poster says") {
 		t.Errorf("output:\n%s", w.out)
 	}
 
