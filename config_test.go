@@ -26,7 +26,7 @@ func TestDefaultConfigParses(t *testing.T) {
 			t.Errorf("search %q: %q, %v", s.Name, u, err)
 		}
 	}
-	if !v.GetBool("analyst_read_papers") || !strings.Contains(v.GetString("analyst_prompt"), "Build123d") {
-		t.Error("analyst settings not parsed")
+	if v.IsSet("analyst_prompt") || v.IsSet("analyst_feeds") {
+		t.Error("default config should use analysts:, not the old analyst_* keys")
 	}
 }

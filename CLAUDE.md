@@ -15,17 +15,18 @@ The default `config.yaml` text is the `config` string in `config.go`. The README
 of it. `TestDefaultConfigParses` checks it is valid YAML (a `: ` inside a plain scalar broke it once).
 
 ## Run flow (`main.go`)
-`LoadConfig` -> (`-check-feeds` exits) -> open SQLite -> weather -> `RunAnalyst` -> `ProcessFeed` per feed.
+`LoadConfig` -> (`-check-feeds` exits) -> open SQLite -> weather -> `RunAnalyst` (every analyst) -> `ProcessFeed` per feed.
 - `feedfetch.go`: all feed fetching. Matcha User-Agent, 3 s spacing for arXiv hosts, retries on 429/503
   (Retry-After, else 5/20/60 s), `-check-feeds`.
 - `processor.go`: per-feed loop, summaries, similar-story clustering hook, empty-section notes, `shownThisRun`
   (items already written this digest are not listed again; arXiv keyed without the version).
-- `analyst.go`: LLM screens titles+abstracts from `analyst_feeds` and `arxiv_searches` (`use: analyst`). Items are
-  numbered; the model cites `[n]` and Matcha swaps in the real title/link. With `analyst_read_papers` it ends
-  with `SELECTED: ..` and picked arXiv papers get full-text summaries.
-- `analysts.go`: `analysts`, extra named analysts (own feeds, `google_news` queries, prompt, model, `max_chars`), each its own
-  section, run by `RunAnalyst` after the main one. Bookkeeping `<url>#analyst:<slug>`. Default: "Creator manufacturing
-  demand" (Reddit/HN/trade press/Google News; also asks for counter-evidence). Feed URLs unverified.
+- `analysts.go`, `analyst.go`: `analysts:` list, each with own feeds, `google_news` queries, prompt, model, `max_chars`,
+  `read_papers`/`max_papers`, and its own section. Items are numbered; the model cites `[n]` and Matcha swaps in the real
+  title/link. With `read_papers` it ends with `SELECTED: ..` and picked arXiv papers get full-text summaries.
+  `arxiv_searches` with `use: analyst` go to the analyst named by `analyst:` (else the first). Bookkeeping `<url>#analyst:<slug>`.
+  The old top-level `analyst_*` keys still work as a first analyst "Daily Analysis" (bookkeeping `<url>#analyst`).
+  `notification_trigger` applies to the first analyst. Defaults: "CAD research scout" and "Creator manufacturing demand"
+  (Reddit/HN/trade press/Google News; feed URLs unverified).
 - `arxiv.go`: `arxiv_searches` -> arXiv query-API feed URLs (terms/categories/exclude), sections titled `arXiv: <name>`.
 - `mineru.go`, `mineru_tasks.go`, `paper.go`, `paperstore.go`: MinerU client (4.1 Tasks API in `mineru_tasks.go`), reference/appendix trimming, code-link extraction,
   on-disk paper store (`paper_store_dir`).

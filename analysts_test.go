@@ -12,7 +12,8 @@ import (
 	"github.com/spf13/viper"
 )
 
-func loadAnalystsFrom(t *testing.T, yaml string) ([]AnalystConfig, []string) {
+// loadAnalystsFrom loads analysts (with arXiv analyst searches attached) from a YAML config.
+func loadAnalystsFrom(t *testing.T, yaml string) (*Config, []string) {
 	t.Helper()
 	viper.Reset()
 	t.Cleanup(viper.Reset)
@@ -20,34 +21,50 @@ func loadAnalystsFrom(t *testing.T, yaml string) ([]AnalystConfig, []string) {
 	if err := viper.ReadConfig(strings.NewReader(yaml)); err != nil {
 		t.Fatal(err)
 	}
-	return loadAnalysts()
+	cfg := &Config{AnalystFeeds: viper.GetStringSlice("analyst_feeds"), AnalystPrompt: viper.GetString("analyst_prompt")}
+	_, searches := loadArxivSearches()
+	return cfg, loadAnalysts(cfg, searches)
 }
 
-func TestDefaultConfigHasDemandAnalyst(t *testing.T) {
-	analysts, warnings := loadAnalystsFrom(t, config)
-	if len(warnings) > 0 || len(analysts) != 1 {
-		t.Fatalf("got %d analysts, warnings %v", len(analysts), warnings)
+func TestDefaultConfigAnalysts(t *testing.T) {
+	cfg, warnings := loadAnalystsFrom(t, config)
+	list := cfg.analystList()
+	if len(warnings) > 0 || len(list) != 2 {
+		t.Fatalf("got %d analysts, warnings %v", len(list), warnings)
 	}
-	a := analysts[0]
-	if a.Name != "Creator manufacturing demand" || !strings.Contains(a.Prompt, "minimum order quantities") || !strings.Contains(a.Prompt, "evidence against") || a.MaxChars != 600 {
-		t.Errorf("unexpected analyst: %+v", a)
+	cad, demand := list[0], list[1]
+	if cad.Name != "CAD research scout" || !cad.ReadPapers || cad.MaxPapers != 3 || !strings.Contains(cad.Prompt, "Build123d") {
+		t.Errorf("CAD analyst: %+v", cad)
 	}
-	if len(a.Feeds) == 0 || len(a.GoogleNews) == 0 || len(a.allFeeds()) != len(a.Feeds)+len(a.GoogleNews) {
-		t.Errorf("feeds: %d, google_news: %d, all: %d", len(a.Feeds), len(a.GoogleNews), len(a.allFeeds()))
+	if len(cad.Feeds) != 1 || !strings.HasPrefix(cad.Feeds[0], "https://export.arxiv.org/api/query?") || !strings.HasSuffix(cad.Feeds[0], " 30") {
+		t.Errorf("Broad CAD scan not attached to the CAD analyst: %v", cad.Feeds)
 	}
-	for _, spec := range a.allFeeds() {
+	if job := cad.job(true); job.tag != "#analyst:cad-research-scout" || !job.readPapers || !job.notify || job.maxChars != defaultAnalystMaxChars {
+		t.Errorf("CAD job: %+v", job)
+	}
+	if demand.Name != "Creator manufacturing demand" || !strings.Contains(demand.Prompt, "minimum order quantities") ||
+		!strings.Contains(demand.Prompt, "evidence against") || demand.MaxChars != 600 || demand.ReadPapers {
+		t.Errorf("demand analyst: %+v", demand)
+	}
+	if len(demand.Feeds) == 0 || len(demand.GoogleNews) == 0 || len(demand.allFeeds()) != len(demand.Feeds)+len(demand.GoogleNews) {
+		t.Errorf("feeds: %d, google_news: %d, all: %d", len(demand.Feeds), len(demand.GoogleNews), len(demand.allFeeds()))
+	}
+	for _, spec := range demand.allFeeds() {
 		u, limit := getFeedAndLimit(spec)
 		if !strings.HasPrefix(u, "https://") || limit <= 0 || strings.Contains(u, " ") {
 			t.Errorf("bad feed spec %q", spec)
 		}
 	}
-	if !strings.Contains(a.allFeeds()[len(a.allFeeds())-1], "Maker%27s+Row") {
-		t.Errorf("YAML quote escape lost: %s", a.allFeeds()[len(a.allFeeds())-1])
+	if !strings.Contains(demand.allFeeds()[len(demand.allFeeds())-1], "Maker%27s+Row") {
+		t.Errorf("YAML quote escape lost: %s", demand.allFeeds()[len(demand.allFeeds())-1])
+	}
+	if job := demand.job(false); job.notify || job.readPapers {
+		t.Errorf("demand job: %+v", job)
 	}
 }
 
 func TestLoadAnalystsSkipsBadEntries(t *testing.T) {
-	analysts, warnings := loadAnalystsFrom(t, `
+	cfg, warnings := loadAnalystsFrom(t, `
 analysts:
   - name: Good
     prompt: pick
@@ -62,16 +79,58 @@ analysts:
     prompt: duplicate
     feeds: [https://a.example]
 `)
-	if len(analysts) != 1 || analysts[0].Name != "Good" || len(warnings) != 4 {
-		t.Fatalf("analysts %+v, warnings %v", analysts, warnings)
+	if len(cfg.Analysts) != 1 || cfg.Analysts[0].Name != "Good" || len(warnings) != 4 {
+		t.Fatalf("analysts %+v, warnings %v", cfg.Analysts, warnings)
 	}
-	job := analysts[0].job(&Config{})
-	if job.tag != "#analyst:good" || job.heading != "Good" || job.maxChars != defaultAnalystMaxChars {
+	job := cfg.Analysts[0].job(false)
+	if job.tag != "#analyst:good" || job.heading != "Good" || job.maxChars != defaultAnalystMaxChars || job.readPapers {
 		t.Errorf("job: %+v", job)
 	}
 	want := "https://news.google.com/rss/search?hl=en-US&gl=US&ceid=US%3Aen&q=%22small+batch%22+manufacturing 10"
 	if len(job.feeds) != 1 || job.feeds[0] != want {
 		t.Errorf("feeds %v, want %s", job.feeds, want)
+	}
+}
+
+func TestArxivAnalystSearchesFindTheirAnalyst(t *testing.T) {
+	cfg, warnings := loadAnalystsFrom(t, `
+arxiv_searches:
+  - {name: default, use: analyst, terms: [CAD]}
+  - {name: named, use: analyst, analyst: second, terms: [OpenSCAD]}
+  - {name: typo, use: analyst, analyst: nobody, terms: [x]}
+analysts:
+  - {name: First, prompt: a}
+  - {name: Second, prompt: b, feeds: [https://b.example]}
+`)
+	if len(warnings) != 1 || !strings.Contains(warnings[0], `no analyst named "nobody"`) {
+		t.Errorf("warnings %v", warnings)
+	}
+	if len(cfg.Analysts) != 2 || len(cfg.Analysts[0].Feeds) != 1 || !strings.Contains(cfg.Analysts[0].Feeds[0], "all:CAD") ||
+		len(cfg.Analysts[1].Feeds) != 2 || !strings.Contains(cfg.Analysts[1].Feeds[1], "all:OpenSCAD") {
+		t.Errorf("analysts %+v", cfg.Analysts)
+	}
+}
+
+// Old configs keep working: analyst_prompt plus arXiv searches with no analyst_feeds becomes a
+// "Daily Analysis" analyst that runs first, keeps the old bookkeeping and gets the searches.
+func TestLegacyAnalystKeysStillWork(t *testing.T) {
+	cfg, warnings := loadAnalystsFrom(t, `
+analyst_prompt: pick CAD
+arxiv_searches:
+  - {name: scan, use: analyst, terms: [CAD]}
+analysts:
+  - {name: Demand, prompt: pick demand, feeds: [https://d.example]}
+  - {name: daily analysis, prompt: clash, feeds: [https://x.example]}
+`)
+	list := cfg.analystList()
+	if len(warnings) != 1 || len(list) != 2 || list[0].Name != "Daily Analysis" || list[1].Name != "Demand" {
+		t.Fatalf("list %+v, warnings %v", list, warnings)
+	}
+	if len(list[0].Feeds) != 1 || len(list[1].Feeds) != 1 {
+		t.Errorf("arXiv search went to the wrong analyst: %+v", list)
+	}
+	if job := list[0].job(true); job.tag != analystTag || job.maxChars != 0 || job.prompt != "pick CAD" {
+		t.Errorf("legacy job: %+v", job)
 	}
 }
 

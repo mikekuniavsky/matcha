@@ -60,7 +60,7 @@ arxiv_searches:
 	if len(feeds) != 2 || !feeds[0].summarize || feeds[0].limit != 5 || feeds[1].summarize || feeds[1].limit != 20 {
 		t.Errorf("feeds = %+v", feeds)
 	}
-	if len(analyst) != 1 || !strings.HasSuffix(analyst[0], " 12") {
+	if len(analyst) != 1 || !strings.HasSuffix(analyst[0].spec, " 12") || analyst[0].name != "b" {
 		t.Errorf("analyst = %v", analyst)
 	}
 }
