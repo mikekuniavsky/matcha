@@ -48,6 +48,39 @@ func TestInstallScheduleDryRun(t *testing.T) {
 	}
 }
 
+func TestQmdRefresh(t *testing.T) {
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("bash not found")
+	}
+	dir := t.TempDir()
+	calls := filepath.Join(dir, "calls")
+	fake := filepath.Join(dir, "qmd")
+	// Fails on "embed" when FAIL_EMBED is set; records every call.
+	os.WriteFile(fake, []byte("#!/bin/sh\necho \"$@\" >> \""+calls+"\"\n[ \"$1\" = embed ] && [ -n \"$FAIL_EMBED\" ] && exit 1\nexit 0\n"), 0o755)
+	run := func(env ...string) (string, error) {
+		cmd := exec.Command("bash", "scripts/macos/qmd-refresh.sh")
+		cmd.Env = append(os.Environ(), env...)
+		out, err := cmd.CombinedOutput()
+		return string(out), err
+	}
+
+	if out, err := run("QMD_BIN=" + fake); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	if got, _ := os.ReadFile(calls); string(got) != "update\nembed\n" {
+		t.Errorf("calls = %q, want update then embed", got)
+	}
+
+	os.Remove(calls)
+	if _, err := run("QMD_BIN="+fake, "FAIL_EMBED=1"); err == nil {
+		t.Error("a failing embed should exit non-zero")
+	}
+
+	if out, err := run("QMD_BIN=" + filepath.Join(dir, "missing")); err != nil || !strings.Contains(out, "skipping") {
+		t.Errorf("missing qmd should be skipped: %v: %s", err, out)
+	}
+}
+
 func TestRunDailySkipsSecondRun(t *testing.T) {
 	if _, err := exec.LookPath("bash"); err != nil {
 		t.Skip("bash not found")
