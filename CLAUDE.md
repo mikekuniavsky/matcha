@@ -24,7 +24,7 @@ of it. `TestDefaultConfigParses` checks it is valid YAML (a `: ` inside a plain 
   numbered; the model cites `[n]` and Matcha swaps in the real title/link. With `analyst_read_papers` it ends
   with `SELECTED: ..` and picked arXiv papers get full-text summaries.
 - `arxiv.go`: `arxiv_searches` -> arXiv query-API feed URLs (terms/categories/exclude), sections titled `arXiv: <name>`.
-- `mineru.go`, `paper.go`, `paperstore.go`: MinerU client, reference/appendix trimming, code-link extraction,
+- `mineru.go`, `mineru_tasks.go`, `paper.go`, `paperstore.go`: MinerU client (4.1 Tasks API in `mineru_tasks.go`), reference/appendix trimming, code-link extraction,
   on-disk paper store (`paper_store_dir`).
 - `fetch.go`, `googlenews.go`: article fetching (HTTP/1.1, browser UA, anchor targets), Google News link
   decoding, Google Alerts `google.com/url?url=` unwrapping.
@@ -33,8 +33,11 @@ of it. `TestDefaultConfigParses` checks it is valid YAML (a `: ` inside a plain 
   time `YYYY-MM-DD`; use `date('now','localtime')` in SQL, not `date('now')`. Analyst bookkeeping uses `<url>#analyst`.
 
 ## Facts learned the hard way
-- **MinerU 3.x** exposes a job API (`/v1/uploads`, `/v1/parse/jobs`, `/v1/files`), not `/file_parse`. Matcha probes
-  `/v1/health` and falls back to `/file_parse` for old servers. The spec the author's server serves is in `mineru-openapi.json`.
+- **MinerU 4.1** (the author runs 4.1.7 since 2026-11-09) replaced the job API with the Tasks API (`/v1/tasks`, PUT to
+  `files[].upload.url`, result ZIP at `files[].result_url` holding `markdown.md`); the old routes return 404. `mineru_tasks.go`
+  implements it. `probe()` in `mineru.go` picks Tasks (health has `features.task_output_formats` or version >= 4.1), the 3.x/4.0
+  job API (`/v1/uploads`, `/v1/parse/jobs`), or legacy `/file_parse` (no `/v1/health`). `mineru-openapi.json` is the 4.0 spec,
+  not 4.1. The 4.1 contract was read from the `mineru` 4.1.7 wheel (`mineru/tasks/http.py`, `mineru/parser/api_client.py`).
 - **arXiv PDFs cannot be parsed by URL job**: `/pdf/<id>.pdf` 301-redirects to `/pdf/<id>`, MinerU does not follow
   redirects and rejects the extensionless name. Matcha downloads the PDF itself and uploads it.
 - **arXiv API** asks for one request per 3 s; `429` was seen in practice.
@@ -55,7 +58,7 @@ of it. `TestDefaultConfigParses` checks it is valid YAML (a `: ` inside a plain 
 
 ## Verified by the author vs not
 Reported working: MinerU job flow and paper summaries, Google News decoding, similar-story clustering.
-Not yet verified on a real setup: `paper_store` (including `paper_store_zip`), the 429 retry/pacing behaviour,
+Not yet verified on a real setup: the MinerU 4.1 Tasks client, `paper_store` (including `paper_store_zip`), the 429 retry/pacing behaviour,
 the arXiv download-and-upload path, `-check-feeds`. Say so when describing them.
 
 ## Working agreements
