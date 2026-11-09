@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"net/http"
@@ -19,25 +20,48 @@ const (
 	defaultLimit = 20
 )
 
+// analystJob is one Analyst run: the main `analyst_*` settings, or one entry of `analysts`.
+type analystJob struct {
+	heading    string // section title, e.g. "Daily Analysis"
+	feeds      []string
+	prompt     string
+	model      string
+	tag        string // suffix for the seen-table bookkeeping, so analysts don't hide items from each other
+	maxChars   int    // cap on each item's text sent to the model; 0 = no cap
+	readPapers bool
+	maxPapers  int
+	notify     bool
+}
+
+// RunAnalyst runs the main Analyst (analyst_feeds/analyst_prompt) and then every named analyst in `analysts`.
 func RunAnalyst(cfg *Config, store *Storage, llm *LLMClient, writer Writer, fp *gofeed.Parser) {
-	if len(cfg.AnalystFeeds) == 0 || cfg.AnalystPrompt == "" {
-		return
-	}
 	if llm == nil {
 		return
 	}
+	if len(cfg.AnalystFeeds) > 0 && cfg.AnalystPrompt != "" {
+		runAnalystJob(analystJob{
+			heading: "Daily Analysis", feeds: cfg.AnalystFeeds, prompt: cfg.AnalystPrompt, model: cfg.AnalystModel,
+			tag: analystTag, readPapers: cfg.AnalystReadPapers, maxPapers: cfg.AnalystMaxPapers, notify: true,
+		}, cfg, store, llm, writer, fp)
+	}
+	for _, a := range cfg.Analysts {
+		runAnalystJob(a.job(cfg), cfg, store, llm, writer, fp)
+	}
+}
 
-	items, stats := collectArticlesForAnalysis(cfg, store, fp)
+func runAnalystJob(job analystJob, cfg *Config, store *Storage, llm *LLMClient, writer Writer, fp *gofeed.Parser) {
+	header := "\n## " + job.heading + ":\n"
+	items, stats := collectArticlesForAnalysis(job, store, fp)
 	if len(items) == 0 {
 		if cfg.ShowEmptySections {
-			writer.Write("\n## Daily Analysis:\n" + writer.WriteSummary(stats.note(), true))
+			writer.Write(header + writer.WriteSummary(stats.note(), true))
 		}
 		return
 	}
 
-	deepDive := cfg.AnalystReadPapers && cfg.AnalystMaxPapers > 0
+	deepDive := job.readPapers && job.maxPapers > 0
 	// Notification prompts expect an exact reply, so leave them untouched.
-	numbered := deepDive || cfg.NotificationTrigger == ""
+	numbered := deepDive || !job.notify || cfg.NotificationTrigger == ""
 	articles := make([]string, len(items))
 	for i, it := range items {
 		if numbered {
@@ -52,38 +76,39 @@ func RunAnalyst(cfg *Config, store *Storage, llm *LLMClient, writer Writer, fp *
 		suffix = "\n\nThe articles below are numbered. Reply in exactly this format and nothing else: one bullet per relevant article, written as `- [n] <one-line takeaway>. Why it matters: <one sentence>.` where n is the article's number (never write the title yourself). If no article is relevant, reply only `No relevant articles today.`"
 	}
 	if deepDive {
-		suffix += fmt.Sprintf("\n\nAfter your analysis, add a final line of the form `SELECTED: 2, 5` listing the numbers of at most %d articles worth reading in full, or `SELECTED: none`.", cfg.AnalystMaxPapers)
+		suffix += fmt.Sprintf("\n\nAfter your analysis, add a final line of the form `SELECTED: 2, 5` listing the numbers of at most %d articles worth reading in full, or `SELECTED: none`.", job.maxPapers)
 	}
 
-	analysis := llm.Analyze(articles, suffix)
+	analysis := llm.AnalyzeWith(job.prompt, job.model, articles, suffix)
 
 	var selected []analystItem
 	if deepDive {
-		analysis, selected = splitSelection(analysis, items, cfg.AnalystMaxPapers)
+		analysis, selected = splitSelection(analysis, items, job.maxPapers)
 	}
 
 	if numbered {
 		analysis = linkCitations(analysis, items)
 	}
 	if analysis == "" && cfg.ShowEmptySections {
-		writer.Write("\n## Daily Analysis:\n" + writer.WriteSummary(fmt.Sprintf("_The model returned no analysis of the %d new articles (see the log for errors)._", len(items)), true))
+		writer.Write(header + writer.WriteSummary(fmt.Sprintf("_The model returned no analysis of the %d new articles (see the log for errors)._", len(items)), true))
 	}
 
 	if analysis != "" {
-		writer.Write("\n## Daily Analysis:\n")
+		writer.Write(header)
 		writer.Write(analysis + "\n")
 		if stats.empty > 0 && cfg.ShowEmptySections {
 			writer.Write(writer.WriteSummary(fmt.Sprintf("_⚠️ %d of %d analyst feeds returned no items, so the analysis covers only the rest (see %s)._", stats.empty, stats.feeds, emptyFeedHint), true))
 		}
 		writeSelectedPapers(cfg, store, llm, writer, selected)
 
-		if cfg.NotificationTrigger != "" &&
+		if job.notify &&
+			cfg.NotificationTrigger != "" &&
 			cfg.NotificationWebhookURL != "" &&
 			strings.TrimSpace(analysis) == strings.TrimSpace(cfg.NotificationTrigger) &&
-			!store.WasFeedNotifiedToday(cfg.AnalystFeeds[0]) {
+			!store.WasFeedNotifiedToday(job.feeds[0]) {
 
 			if err := sendNotification(cfg.NotificationWebhookURL, analysis); err == nil {
-				_ = store.MarkFeedNotified(cfg.AnalystFeeds[0])
+				_ = store.MarkFeedNotified(job.feeds[0])
 			}
 		}
 	}
@@ -201,11 +226,11 @@ func (s analystStats) note() string {
 	return note + "._"
 }
 
-func collectArticlesForAnalysis(cfg *Config, store *Storage, fp *gofeed.Parser) ([]analystItem, analystStats) {
+func collectArticlesForAnalysis(job analystJob, store *Storage, fp *gofeed.Parser) ([]analystItem, analystStats) {
 	var articles []analystItem
 	var stats analystStats
 
-	for _, feedSpec := range cfg.AnalystFeeds {
+	for _, feedSpec := range job.feeds {
 		stats.feeds++
 		// Accept "URL N" like the other feed lists
 		feedURL, limit := getFeedAndLimit(feedSpec)
@@ -229,7 +254,7 @@ func collectArticlesForAnalysis(cfg *Config, store *Storage, fp *gofeed.Parser) 
 
 		for _, item := range feed.Items {
 			stats.read++
-			articleLink := item.Link + analystTag
+			articleLink := item.Link + job.tag
 			seen, seenToday, summary := store.IsSeen(articleLink)
 
 			if seen {
@@ -238,7 +263,7 @@ func collectArticlesForAnalysis(cfg *Config, store *Storage, fp *gofeed.Parser) 
 			}
 
 			articles = append(articles, analystItem{
-				Title: item.Title, Link: item.Link, Description: item.Description,
+				Title: item.Title, Link: item.Link, Description: analystText(item, job.maxChars),
 				FeedTitle: feed.Title, FeedURL: feed.Link,
 			})
 
@@ -251,6 +276,24 @@ func collectArticlesForAnalysis(cfg *Config, store *Storage, fp *gofeed.Parser) 
 	}
 
 	return articles, stats
+}
+
+var analystTagRe = regexp.MustCompile(`<[^>]*>`)
+
+// analystText is the text the model sees for an item: the RSS description, or the content when
+// there is none (Reddit's Atom feeds put the post only in <content>), without HTML and capped at
+// maxChars runes (0 = no cap).
+func analystText(item *gofeed.Item, maxChars int) string {
+	text := item.Description
+	if strings.TrimSpace(stripHtmlRegex(text)) == "" {
+		text = item.Content
+	}
+	text = html.UnescapeString(analystTagRe.ReplaceAllString(text, " "))
+	text = strings.Join(strings.Fields(text), " ")
+	if r := []rune(text); maxChars > 0 && len(r) > maxChars {
+		text = strings.TrimSpace(string(r[:maxChars])) + "…"
+	}
+	return text
 }
 
 func sendNotification(url, message string) error {
