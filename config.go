@@ -94,7 +94,7 @@ analysts:                            # each analyst screens its feeds with its o
   - name: Creator manufacturing demand
     max_chars: 600                     # characters of each post the model sees (default 1500)
     feeds:
-      - https://www.reddit.com/r/Entrepreneur+smallbusiness+ecommerce+shopify+startups+EtsySellers+FulfillmentByAmazon/search.rss?q=manufacturer+OR+manufacturing+OR+prototype+OR+MOQ+OR+%22minimum+order%22&restrict_sr=on&sort=new 25
+      - https://www.reddit.com/r/Entrepreneur+smallbusiness+ecommerce+shopify+startups+EtsySellers+FulfillmentByAmazon/search.rss?q=manufacturer+OR+manufacturing+OR+prototype+OR+MOQ&restrict_sr=on&sort=new 25
       - https://www.reddit.com/r/PartneredYoutube+NewTubers+youtubers+InstagramMarketing+Twitch+podcasting/search.rss?q=merch+OR+%22product+line%22+OR+%22own+product%22+OR+manufacturer&restrict_sr=on&sort=new 15
       - https://www.reddit.com/r/IndustrialDesign+productdesign+manufacturing+AskEngineers+3Dprinting/search.rss?q=%22contract+manufacturer%22+OR+%22injection+molding%22+OR+%22small+batch%22+OR+%22production+run%22&restrict_sr=on&sort=new 15
       - https://hnrss.org/newest?q=%22contract+manufacturer%22 10
@@ -102,11 +102,11 @@ analysts:                            # each analyst screens its feeds with its o
       - https://www.modernretail.co/feed/ 15
       - https://www.tubefilter.com/feed/ 15
     google_news:                       # plain Google News searches, first 10 results each
-      - '"creator brand" OR "creator-led brand" OR "influencer brand" manufacturing OR manufacturer OR factory when:7d'
-      - 'creator OR influencer OR YouTuber launches "product line" OR "physical product" when:7d'
+      - '"creator brand" OR "creator-led brand" OR "influencer brand" OR "creator-owned brand" when:30d'
+      - 'creator OR influencer OR YouTuber "product line" when:30d'
       - '"minimum order quantity" OR MOQ small brand manufacturer when:7d'
-      - 'Kickstarter OR Indiegogo delayed manufacturer OR manufacturing OR factory when:7d'
-      - 'Pietra OR Sourcify OR "Maker''s Row" creators manufacturing when:30d'
+      - 'Kickstarter OR Indiegogo delayed manufacturing when:30d'
+      - 'Pietra OR Sourcify OR "Maker''s Row" when:30d'
     prompt: >-
       You are a market-signal scout for a product-design tool that takes content creators and
       independent brands from a product idea to a manufacturable design and quotes from contract
