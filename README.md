@@ -273,7 +273,7 @@ Each paper is saved under its arXiv ID:
 
 - `picks` keeps the folder small: the Analyst picks at most `analyst_max_papers` papers a day. `all` also keeps every paper parsed from `summary_feeds` and `arxiv_searches` with `use: summary`. Markdown for a paper is typically tens to a few hundred kilobytes; that is an estimate, not a measurement.
 - A paper that is already in the folder is read from disk instead of being sent to MinerU, in either mode, so the folder also survives deleting `matcha.db`. A revised arXiv version (`v2`) is a different file.
-- The zip is requested from MinerU only when `paper_store_zip` is on and the paper is being saved; if MinerU doesn't return one, the markdown is still saved. The legacy `/file_parse` API has no zip.
+- The zip is kept only when `paper_store_zip` is on and the paper is being saved; if MinerU doesn't return one, the markdown is still saved. With MinerU 4.1+ it is the task's result ZIP (`markdown.md`, `middle_json.json`, `structured_content.json`, `images/`), which Matcha downloads anyway to get the markdown. The legacy `/file_parse` API has no zip.
 - The folder is plain files, so other tools can use it: add it to a [Msty](https://msty.app) Knowledge Stack, open it as an Obsidian vault, `grep -r` it, or import files into Zotero by hand. Papers you add to Zotero are parsed again by the llm-for-zotero plugin into its own cache; Matcha does not write to Zotero or that cache.
 - Papers parsed before you turned this on are not backfilled, and summaries already cached in the database are not regenerated.
 
@@ -373,9 +373,12 @@ paper_summary_prompt:               # optional override
 openai_model: gpt-4o                # papers are long; use a large-context model
 ```
 
-Matcha supports two MinerU API generations and picks one by probing `GET /v1/health`:
-- **MinerU 3.x job API** (`/v1/parse/jobs`): for arXiv papers Matcha downloads the PDF itself (following redirects, identifying itself, and pacing requests to arXiv) and uploads it, because MinerU cannot fetch arXiv's PDF URLs on its own: they have no `.pdf` extension (MinerU rejects the file name as an unsupported type) and arXiv redirects the `.pdf` form, which MinerU's downloader does not follow. Other URLs that end in `.pdf` are tried as a URL job first, with the same upload as a fallback. Matcha then creates a markdown job, polls it (up to 15 minutes), downloads the markdown, and deletes the output file. Only one job runs at a time on a default server; a `429` is retried.
+Matcha supports three MinerU API generations and picks one by probing `GET /v1/health`:
+- **MinerU 4.1 and later, Tasks API** (`/v1/tasks`), used when the health reply advertises `features.task_output_formats` or a 4.1+ version. For arXiv papers Matcha downloads the PDF itself (following redirects, identifying itself, and pacing requests to arXiv) and uploads it, because MinerU cannot fetch arXiv's PDF URLs on its own: they have no `.pdf` extension (MinerU rejects the file name as an unsupported type) and arXiv redirects the `.pdf` form, which MinerU's downloader does not follow. Other URLs that end in `.pdf` are sent as a URL task first, with the same upload as a fallback. Matcha creates a one-file task (with the PDF's size and SHA-256, so the server can reuse a cached upload), PUTs the PDF to the upload link the server returns, polls the task (up to 15 minutes, then cancels it), downloads the result ZIP and reads `markdown.md` from it. MinerU expires results itself; 4.1 has no delete call.
+- **MinerU 3.x and 4.0 job API** (`/v1/uploads`, `/v1/parse/jobs`, removed in 4.1): same download-and-upload rule for arXiv; Matcha creates a markdown job, polls it, downloads the markdown, and deletes the output file. Only one job runs at a time on a default server; a `429` is retried.
 - **Older `mineru-api`** (`POST /file_parse`): used when `/v1/health` isn't available.
+
+If `/v1/health` answers `503` (MinerU is up but still loading its models), Matcha logs that and uses the abstract for that paper.
 
 Before summarizing, Matcha drops the references, acknowledgments and appendices (everything from a `References`/`Appendix`-style heading in the second half of the paper) so the character budget goes to the body and results. It also collects code and data links from the body and lists them under the summary as `Code/data:` (see below).
 

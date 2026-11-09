@@ -36,10 +36,11 @@ func hasPDFExtension(rawURL string) bool {
 
 // MinerUClient converts PDFs to markdown through a running MinerU API server.
 //
-// Current servers expose an asynchronous job API (/v1/parse/jobs): create a job for a
-// URL (or uploaded file), poll it, then download the markdown output. Older
-// `mineru-api` servers expose a synchronous POST /file_parse; that is used when
-// /v1/health is not available.
+// Three server generations are supported, chosen by probing GET /v1/health:
+//   - MinerU 4.1+: the Tasks API (/v1/tasks): one JSON manifest per paper, PUT the PDF
+//     to the returned upload URL, poll, then download the per-file result ZIP.
+//   - MinerU 3.x/4.0: the job API (/v1/uploads, /v1/parse/jobs), removed in 4.1.
+//   - older `mineru-api`: synchronous POST /file_parse, used when /v1/health is missing.
 type MinerUClient struct {
 	baseURL      string
 	tier         string // optional: flash, basic, standard or advanced
@@ -82,7 +83,14 @@ func (m *MinerUClient) PDFToMarkdown(pdfURL string) (string, error) {
 // PDFToOutput parses the PDF at pdfURL. With wantZip it also asks for MinerU's zip package
 // (best effort: a missing or failed zip does not fail the parse; the legacy API has none).
 func (m *MinerUClient) PDFToOutput(pdfURL string, wantZip bool) (MinerUOutput, error) {
-	if !m.hasV1() {
+	api, err := m.probe()
+	if err != nil {
+		return MinerUOutput{}, err
+	}
+	if api == mineruTasks {
+		return m.tasksOutput(pdfURL, wantZip)
+	}
+	if api == mineruLegacy {
 		pdf, err := downloadPDF(pdfURL)
 		if err != nil {
 			return MinerUOutput{}, err
@@ -187,14 +195,48 @@ func (j v1Job) errorText() string {
 	return ""
 }
 
-func (m *MinerUClient) hasV1() bool {
+const (
+	mineruLegacy = "legacy" // POST /file_parse
+	mineruJobs   = "jobs"   // 3.x/4.0: /v1/uploads + /v1/parse/jobs
+	mineruTasks  = "tasks"  // 4.1+: /v1/tasks
+)
+
+// probe asks /v1/health which API generation the server speaks. A 4.1+ server advertises
+// features.task_output_formats (and a 4.1+ version). A 503 means the server is up but its
+// models are still loading; that is reported as an error rather than guessed at.
+func (m *MinerUClient) probe() (string, error) {
 	resp, err := m.http.Get(m.baseURL + "/v1/health")
 	if err != nil {
-		return false
+		return mineruLegacy, nil
 	}
 	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body)
-	return resp.StatusCode == http.StatusOK
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode == http.StatusServiceUnavailable {
+		return "", fmt.Errorf("mineru not ready (GET /v1/health: %s): %.200s", resp.Status, raw)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return mineruLegacy, nil
+	}
+	var h struct {
+		Version  string `json:"version"`
+		Features struct {
+			TaskOutputFormats []string `json:"task_output_formats"`
+		} `json:"features"`
+	}
+	json.Unmarshal(raw, &h)
+	if len(h.Features.TaskOutputFormats) > 0 || versionAtLeast(h.Version, 4, 1) {
+		return mineruTasks, nil
+	}
+	return mineruJobs, nil
+}
+
+// versionAtLeast reports whether a "major.minor.patch" version is >= major.minor.
+func versionAtLeast(v string, major, minor int) bool {
+	var ma, mi int
+	if n, _ := fmt.Sscanf(strings.TrimPrefix(v, "v"), "%d.%d", &ma, &mi); n < 2 {
+		return false
+	}
+	return ma > major || ma == major && mi >= minor
 }
 
 // callJSON sends an optional JSON body and decodes an optional JSON reply.
