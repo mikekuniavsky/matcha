@@ -20,6 +20,14 @@ type ArxivSearch struct {
 	Terms      []string `mapstructure:"terms"`      // match ANY of these
 	Categories []string `mapstructure:"categories"` // optional: restrict to these arXiv categories
 	Exclude    []string `mapstructure:"exclude"`    // optional: drop results matching any of these
+	Analyst    string   `mapstructure:"analyst"`    // use: analyst only: which analyst reads it (default the first)
+}
+
+// arxivAnalystFeed is an arXiv search with use: analyst, waiting to be attached to an analyst.
+type arxivAnalystFeed struct {
+	name    string // the search's name, for warnings
+	analyst string // target analyst name; empty = default
+	spec    string // "URL N"
 }
 
 var (
@@ -84,8 +92,8 @@ func buildArxivQuery(s ArxivSearch) (string, error) {
 }
 
 // loadArxivSearches expands `arxiv_searches` into feeds (use: summary|feed) and
-// analyst feed specs ("URL N", use: analyst).
-func loadArxivSearches() (feeds []RSS, analyst []string) {
+// analyst feeds (use: analyst), attached to an analyst by attachArxivAnalystFeeds.
+func loadArxivSearches() (feeds []RSS, analyst []arxivAnalystFeed) {
 	var searches []ArxivSearch
 	if err := viper.UnmarshalKey("arxiv_searches", &searches); err != nil {
 		log.Printf("arxiv_searches: %v", err)
@@ -114,7 +122,7 @@ func loadArxivSearches() (feeds []RSS, analyst []string) {
 		case "feed":
 			feeds = append(feeds, RSS{url: u, limit: s.Limit, name: "arXiv: " + name})
 		case "analyst":
-			analyst = append(analyst, fmt.Sprintf("%s %d", u, s.Limit))
+			analyst = append(analyst, arxivAnalystFeed{name: name, analyst: s.Analyst, spec: fmt.Sprintf("%s %d", u, s.Limit)})
 		default:
 			log.Printf("arxiv_searches %s: use must be summary, analyst or feed (got %q) (skipped)", name, s.Use)
 		}

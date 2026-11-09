@@ -83,7 +83,6 @@ On first execution, Matcha will generate the following config.yaml and a markdow
 ```yaml
 markdown_dir_path:
 summary_feeds:
-analyst_feeds:
 arxiv_searches:
   - name: CAD tools and generation   # precise; every hit is parsed in full
     use: summary                     # summary | analyst | feed
@@ -101,8 +100,9 @@ arxiv_searches:
       - parametric CAD
       - B-rep
       - OpenSCAD
-  - name: Broad CAD scan             # noisy; the Analyst screens it
+  - name: Broad CAD scan             # noisy; an analyst screens it
     use: analyst
+    analyst: CAD research scout      # which analyst reads it (default: the first)
     limit: 30
     terms:
       - CadQuery
@@ -140,13 +140,26 @@ paper_store_dir:
 paper_store: picks
 paper_store_zip: false
 show_images: false
-analyst_prompt: You are a strict research scout for an AI-assisted CAD product that generates and edits parametric CAD as code (CadQuery, Build123d, OpenSCAD). Most days only a few of the numbered articles qualify, often none. Pick an article only if its title or abstract is directly about generating, editing, verifying or repairing 3D CAD models with AI (text/image/sketch-to-CAD, CAD code generation, B-rep or CAD-ready mesh generation), design intent or geometric constraints in CAD, LLM agents that drive CAD kernels or tools, CAD datasets and benchmarks, or AI for design for manufacturing. Do not pick an article by analogy, such as general code generation, theorem proving, robotics, simulation, image or video generation, 3D scene reconstruction, or optimization of unrelated systems, unless it explicitly applies the work to CAD or mechanical part design. Ignore unrelated uses of the acronym CAD (computer-aided diagnosis or detection). Pick at most 8. For each pick, give a one-line takeaway and why it matters for a design-studio tool.
-analyst_read_papers: true
-analyst_max_papers: 3
-analyst_model:
-analysts:                            # extra analysts, each with its own feeds, prompt and section
+analysts:                            # each analyst screens its feeds with its own prompt and gets its own section
+  - name: CAD research scout
+    model:                             # optional; defaults to openai_model
+    read_papers: true                  # pick arXiv papers for full-text summaries (MinerU)
+    max_papers: 3
+    feeds:                             # "URL N"; arxiv_searches with use: analyst are added here too
+    prompt: >-
+      You are a strict research scout for an AI-assisted CAD product that generates and edits parametric
+      CAD as code (CadQuery, Build123d, OpenSCAD). Most days only a few of the numbered articles qualify,
+      often none. Pick an article only if its title or abstract is directly about generating, editing,
+      verifying or repairing 3D CAD models with AI (text/image/sketch-to-CAD, CAD code generation, B-rep
+      or CAD-ready mesh generation), design intent or geometric constraints in CAD, LLM agents that drive
+      CAD kernels or tools, CAD datasets and benchmarks, or AI for design for manufacturing. Do not pick
+      an article by analogy, such as general code generation, theorem proving, robotics, simulation, image
+      or video generation, 3D scene reconstruction, or optimization of unrelated systems, unless it
+      explicitly applies the work to CAD or mechanical part design. Ignore unrelated uses of the acronym
+      CAD (computer-aided diagnosis or detection). Pick at most 8. For each pick, give a one-line takeaway
+      and why it matters for a design-studio tool.
   - name: Creator manufacturing demand
-    max_chars: 600                     # characters of each post or article the model sees
+    max_chars: 600                     # characters of each post the model sees (default 1500)
     feeds:
       - https://www.reddit.com/r/Entrepreneur+smallbusiness+ecommerce+shopify+startups+EtsySellers+FulfillmentByAmazon/search.rss?q=manufacturer+OR+manufacturing+OR+prototype+OR+MOQ+OR+%22minimum+order%22&restrict_sr=on&sort=new 25
       - https://www.reddit.com/r/PartneredYoutube+NewTubers+youtubers+InstagramMarketing+Twitch+podcasting/search.rss?q=merch+OR+%22product+line%22+OR+%22own+product%22+OR+manufacturer&restrict_sr=on&sort=new 15
@@ -180,20 +193,20 @@ analysts:                            # extra analysts, each with its own feeds, 
       Pick at most 8. For a post, quote a few of the poster's own words.
 ```
 
-### `summary_feeds` vs `analyst_feeds`
+### `summary_feeds` vs `analysts`
 Both use an LLM, but they do different jobs. (The config key is `summary_feeds`, not `summarize_feeds`.)
 
-| | `summary_feeds` | `analyst_feeds` |
+| | `summary_feeds` | `analysts` |
 |---|---|---|
 | **Purpose** | Read each article for you | Screen a batch of articles and tell you which matter |
-| **Appears in the digest as** | The feed's articles, each with its own LLM summary | A single "Daily Analysis" section; the feed's articles are not listed separately |
-| **LLM input** | One article per call: the full page (or, for arXiv, the full paper via MinerU) | One call for the whole batch: only titles and RSS descriptions |
-| **Prompt** | `summary_prompt` / `paper_summary_prompt` | `analyst_prompt` (you write what to look for) |
-| **Model** | `openai_model` | `analyst_model` (defaults to gpt-4o) |
-| **Cost** | Up to one LLM call per article (keep limits small) | One call per run, plus full-paper summaries for up to `analyst_max_papers` picks |
+| **Appears in the digest as** | The feed's articles, each with its own LLM summary | One section per analyst, named after it; the feeds' articles are not listed separately |
+| **LLM input** | One article per call: the full page (or, for arXiv, the full paper via MinerU) | One call per analyst for the whole batch: titles and descriptions only |
+| **Prompt** | `summary_prompt` / `paper_summary_prompt` | each analyst's `prompt` (you write what to look for) |
+| **Model** | `openai_model` | each analyst's `model` (defaults to `openai_model`, then gpt-4o) |
+| **Cost** | Up to one LLM call per article (keep limits small) | One call per analyst per run, plus full-paper summaries for up to `max_papers` picks |
 | **Best for** | Feeds you want condensed, such as a few high-signal sources | Noisy or high-volume feeds you want triaged, or alerts (`notification_trigger`) |
 
-Both accept the same `URL N` limit syntax. The two can share a source: the default config summarizes a narrow arXiv query in `summary_feeds` and has the Analyst scan a broader one, then promote its picks to full-paper summaries (`analyst_read_papers`). Plain `feeds` are neither: they are listed with headlines only.
+Both accept the same `URL N` limit syntax. The two can share a source: the default config summarizes a narrow arXiv query and has the CAD research scout screen a broader one, then promote its picks to full-paper summaries (`read_papers`). Plain `feeds` are neither: they are listed with headlines only.
 
 ### arXiv searches
 Instead of hand-writing arXiv's URL-encoded `search_query`, list plain terms under `arxiv_searches`. Matcha builds the query-API feed for you:
@@ -211,36 +224,57 @@ arxiv_searches:
     categories: [cs.RO, cs.AI]    # optional: also require one of these categories (cs.* works)
     exclude:                      # optional: drop results matching any of these
       - computer-aided diagnosis
+    analyst: CAD research scout   # use: analyst only: which analyst reads it (default: the first)
 ```
 
-- `use: summary` adds it like `summary_feeds` (each hit is parsed in full with MinerU and summarized; default limit 5). `use: analyst` adds it to the Analyst's input (cheap screening of titles and abstracts; default 30). `use: feed` lists links only (default 20).
+- `use: summary` adds it like `summary_feeds` (each hit is parsed in full with MinerU and summarized; default limit 5). `use: analyst` adds it to an analyst's feeds (cheap screening of titles and abstracts; default 30): the one named by `analyst:`, or else the first analyst. `use: feed` lists links only (default 20).
 - Results are always newest-first. Bad entries (unknown `use`/`field`, no terms, malformed category) are skipped with a warning in the output.
-- Raw feed URLs still work in `feeds`, `summary_feeds` and `analyst_feeds`; `arxiv_searches` entries are added to them.
+- Raw feed URLs still work in `feeds`, `summary_feeds` and an analyst's `feeds`; `arxiv_searches` entries are added to them.
 
-### Named analysts (`analysts`)
-The main Analyst has one prompt, so it can watch one topic well. `analysts` adds more, each with its own feeds, prompt and section in the digest, so a market-signal scan doesn't dilute the research scout (or the other way round). Each runs after the Daily Analysis and costs one LLM call per run.
+### Analysts
+An analyst gathers the newest items from its feeds, sends their titles and descriptions to a language model in one prompt, and writes the model's picks into the digest under a section with the analyst's name. You write in its `prompt` what it should look for: papers relevant to your product, signs of a market, an investment opportunity, a specific kind of security incident. Each analyst has its own feeds and prompt, so several topics don't dilute each other. The default config ships two: a CAD research scout and a creator manufacturing demand scan.
 
 ```yaml
 analysts:
-  - name: Creator manufacturing demand   # section title; also keys what this analyst has already screened
-    model:                               # optional; defaults to analyst_model
-    max_chars: 600                       # optional; characters of each item's text sent to the model (default 600)
-    feeds:                               # "URL N", like analyst_feeds
-      - https://www.reddit.com/r/Entrepreneur+smallbusiness/search.rss?q=manufacturer+OR+MOQ&restrict_sr=on&sort=new 25
-    google_news:                         # optional plain Google News searches; first 10 results each
-      - '"minimum order quantity" OR MOQ small brand manufacturer when:7d'
+  - name: CAD research scout          # section title; also keys what this analyst has already screened
+    model:                            # optional; defaults to openai_model, then gpt-4o
+    read_papers: true                 # optional: pick arXiv papers for full-text summaries (see below)
+    max_papers: 3                     # optional: at most this many picks (default 3)
+    max_chars: 1500                   # optional: characters of each item's text sent to the model (default 1500)
+    feeds:                            # "URL N", default 20 items; arxiv_searches with use: analyst are added here
+      - https://rss.arxiv.org/rss/cs.CV 30
+    google_news:                      # optional plain Google News searches; first 10 results each
+      - '"text-to-CAD" when:7d'
     prompt: >-
-      What to pick. The numbered output format is added for you, as for the main Analyst.
+      What to pick. The numbered output format is added for you.
 ```
 
-- Every item is screened once per analyst: an article the main Analyst already saw is still shown to a named analyst, and the other way round. Renaming an analyst makes it screen its feeds again.
+- Analysts run in the order listed, before the feeds. Each costs one LLM call per run.
+- Every item is screened once per analyst: an article one analyst already saw is still shown to the others. Renaming an analyst makes it screen its feeds again.
 - The model sees each item's title and description, or the item's content when there is no description (Reddit's feeds put the post itself only there), without HTML and cut to `max_chars`. Forum posts can be long, and a small local model's context fills quickly: with Ollama, check `num_ctx` against roughly (items x `max_chars` / 4) tokens.
-- Picks are written like the Daily Analysis (`- [n] ...` with the real title linked). Named analysts don't pick papers for full-text summaries and don't send notifications; those stay with the main Analyst.
+- The Analyst reads only the first N items of each feed and does no filtering itself, so the feed or search query, not the model, decides what it can see.
 - `./matcha -check-feeds` lists each analyst's feeds under its name.
-- Entries without a name, a prompt, or any feeds or `google_news` queries are skipped with a warning in the log.
+- Entries without a name, a prompt, or any feeds are skipped with a warning in the log, as is a second analyst with the same name.
+
+Another example, an analyst finding investment opportunities:
+
+```yaml
+openai_api_key: sk-xxxxxxxxxxxxxxxxx
+analysts:
+  - name: Investment ideas
+    feeds:
+      - https://feeds.bbci.co.uk/news/business/rss.xml
+    prompt: You are a world-class investing expert. Analyze the provided list of articles for potential investment opportunities. If no direct opportunities are found, identify industries, regions, or trends that could have indirect impacts on the investment landscape.
+```
+
+Snippet of sample output (as an investment analyst):
+<img width="961" alt="image" src="https://github.com/user-attachments/assets/5ccb43d0-3057-4b39-b445-891246c9b644" />
+
+#### Older configs: `analyst_feeds` and `analyst_prompt`
+Before `analysts`, Matcha had one Analyst configured with top-level keys. They still work: `analyst_feeds`, `analyst_prompt`, `analyst_model`, `analyst_read_papers` and `analyst_max_papers` become an analyst named "Daily Analysis" that runs first, keeps its screening history, and receives `arxiv_searches` that name no analyst. `analyst_model` is also the default model for the other analysts. To switch, move them into an `analysts` entry (`analyst_feeds` → `feeds`, `analyst_prompt` → `prompt`, `analyst_read_papers` → `read_papers`, `analyst_max_papers` → `max_papers`) and delete the old keys. The renamed analyst screens the items still in its feeds once more on its first run, because its screening history is kept under its new name.
 
 #### The default: creator manufacturing demand
-The default config ships one named analyst that looks for evidence that content creators and independent brands want to manufacture their own physical products and find the process hard. It reads:
+The second default analyst looks for evidence that content creators and independent brands want to manufacture their own physical products and find the process hard. It reads:
 - **Reddit searches** (newest first) across small-business and e-commerce subreddits, creator subreddits (YouTube, Instagram, Twitch, podcasting), and design and manufacturing subreddits, for words such as manufacturer, prototype, MOQ, contract manufacturer and injection molding. Reddit's search syntax takes `OR` and quoted phrases; edit `q=` in the URL to change the terms or the `r/a+b+c` part to change the subreddits.
 - **Hacker News** posts mentioning contract manufacturers or injection molding (hnrss.org).
 - **Trade press**: Modern Retail (DTC and creator-led brands) and Tubefilter (creator economy).
@@ -254,27 +288,8 @@ The prompt picks first-hand accounts of trouble getting a product made (finding 
 
 These feed URLs were written without being able to fetch them from the development sandbox, so run `./matcha -check-feeds` once and drop any that fail. Reddit sometimes answers RSS requests with `429` or `403` when it sees too much traffic from one address.
 
-### Analyst LLM Feature
-The Analyst feature enables you to gather articles from specified feeds and analyze them using a prompt sent to a language model like GPT-4o (default). The result is included in the daily digest under an Analysis section. You write on your analyst_prompt setting what do you want the analyst to do on your behalf, for example picking relevant news to your liking (example: a cybersecurity expert interested only in certain type of attack), or having an investing analyst suggesting investment opportunities, etc. 
-
-The default config ships an AI CAD research scout. It reads a broad arXiv search (all categories, not just cs.GR/cs.CV) defined under `arxiv_searches`. The Analyst reads only the first N items of each feed (the `URL N` limit, default 20; 30 for `arxiv_searches` with `use: analyst`) and does no filtering itself, so the feed or search query, not the model, decides what it can see. Another example, an analyst finding investment opportunities:
-
-```yaml
-openai_api_key: sk-xxxxxxxxxxxxxxxxx
-analyst_feeds:
-  - https://feeds.bbci.co.uk/news/business/rss.xml
-analyst_prompt: You are a world-class investing expert. Analyze the provided list of articles for potential investment opportunities. If no direct opportunities are found, identify industries, regions, or trends that could have indirect impacts on the investment landscape.
-```
-
-How it Works:
-The RSS feeds specified in analyst_feeds are fetched, and the titles along with their rss descriptions are attached to the analyst_prompt to form a single input prompt. 
-Then the prompt is sent to the specified language model (analyst_model), and the response is included in the daily markdown file under the Analysis section.
-
-Snippet of sample output (as an investment analyst):
-<img width="961" alt="image" src="https://github.com/user-attachments/assets/5ccb43d0-3057-4b39-b445-891246c9b644" />
-
 #### Analyst output format
-When the articles are numbered (the default, unless `notification_trigger` is set), Matcha appends a strict format to your `analyst_prompt`: one bullet per relevant article, written as `- [n] <takeaway>. Why it matters: <reason>.`, or `No relevant articles today.` Matcha then replaces each `[n]` with the article's real title as a bold link, so the Daily Analysis names every paper and links to it without trusting the model to copy titles or URLs. Keep your own prompt about *what* to pick; the format is handled for you.
+When the articles are numbered (the default, except for the first analyst when `notification_trigger` is set), Matcha appends a strict format to the analyst's `prompt`: one bullet per relevant article, written as `- [n] <takeaway>. Why it matters: <reason>.`, or `No relevant articles today.` Matcha then replaces each `[n]` with the article's real title as a bold link, so the analysis names every paper and links to it without trusting the model to copy titles or URLs. Keep your own prompt about *what* to pick; the format is handled for you.
 
 Some local models running in thinking mode (Gemma's thinking channel, Qwen or DeepSeek `<think>` blocks) can return their reasoning as part of the answer, which used to show up in the digest as a draft list followed by the real one. Matcha keeps only the text after the last `<channel|>` or `</think>` marker, for the Analyst and for summaries.
 
@@ -284,7 +299,7 @@ The limit cuts a feed *before* the model sees it. That matters for arXiv's categ
 - **Narrow with a search** (`arxiv_searches` with `use: analyst`). The query picks papers that mention your terms in any category, and the Analyst screens those. Fewer papers, all of them plausible.
 - **Both:** one broad category feed with a high limit plus a search, if your model and hardware can take the prompt.
 
-The category RSS feeds are also empty between announcements (weekends, holidays, and sometimes for a while after arXiv's daily update). An empty analyst feed is reported in the Daily Analysis note as `N of M feeds returned no items`; run Matcha again later to pick up the day's papers. Items first screened today are screened again on a same-day rerun.
+The category RSS feeds are also empty between announcements (weekends, holidays, and sometimes for a while after arXiv's daily update). An empty analyst feed is reported in the analyst's section as `N of M feeds returned no items`; run Matcha again later to pick up the day's papers. Items first screened today are screened again on a same-day rerun.
 
 #### Writing an analyst prompt
 With a broad input, the model's habit is to find a reason why almost everything matters ("it validates the concept of…"). A prompt that keeps the picks useful:
@@ -293,23 +308,21 @@ With a broad input, the model's habit is to find a reason why almost everything 
 - **Cap the number of picks** ("pick at most 8"), so a noisy day can't produce a list of 25.
 - **Ask about the title and abstract**, not about what the work could be used for.
 
-The default `analyst_prompt` above follows these rules. Small local models (such as a 4B model) are noticeably more permissive than large ones; a larger `analyst_model` is the other lever if the picks are still loose.
+The default CAD research scout's prompt follows these rules. Small local models (such as a 4B model) are noticeably more permissive than large ones; a larger `model` is the other lever if the picks are still loose.
 
 #### Analyst picks papers for full-text summaries
-With `analyst_read_papers: true`, the Analyst numbers the articles it sees and ends its answer with a `SELECTED:` line naming up to `analyst_max_papers` (default 3) worth reading in full. Matcha then parses each selected arXiv paper with MinerU (see "Paper summaries with MinerU"), summarizes it, and lists it under "Papers worth reading in full" right after the analysis. Selections are resolved by number against the articles actually sent, so the model can't pick a paper it wasn't shown. Non-arXiv picks stay in the analysis text only. Feeds in `analyst_feeds` accept the same `URL N` limit syntax as `feeds` (default 20).
+With `read_papers: true`, an analyst ends its answer with a `SELECTED:` line naming up to `max_papers` (default 3) articles worth reading in full. Matcha then parses each selected arXiv paper with MinerU (see "Paper summaries with MinerU"), summarizes it, and lists it under "Papers worth reading in full" right after the analysis. Selections are resolved by number against the articles actually sent, so the model can't pick a paper it wasn't shown. Non-arXiv picks stay in the analysis text only.
 
-Default model is OpenAI's gpt-4o but to override model add configuration:
-```
-analyst_model: o1-preview
-```
 #### Analyst Notifications
-The analyst feature supports notifications (Slack hooks or ntfy.sh). See a working example below:
+The first analyst can send notifications (Slack hooks or ntfy.sh) when its whole reply equals `notification_trigger`. See a working example below:
 ```yaml
-analyst_prompt: "Check the news titles below and if you see that airbus flights are returned to normal please respond with \"FLIGHTS BACK TO NORMAL\" and nothing else, no explanations."
-analyst_feeds:
-  - https://feeds.bbci.co.uk/news/business/rss.xml
-analyst_model: qwen3:4b
-openai_base_url: http://localhost: 11434/v1
+analysts:
+  - name: Flights
+    model: qwen3:4b
+    feeds:
+      - https://feeds.bbci.co.uk/news/business/rss.xml
+    prompt: "Check the news titles below and if you see that airbus flights are returned to normal please respond with \"FLIGHTS BACK TO NORMAL\" and nothing else, no explanations."
+openai_base_url: http://localhost:11434/v1
 notification_trigger: "FLIGHTS BACK TO NORMAL"
 notification _webhook_url: https://ntfy.sh/myuniquetopic
 ```
@@ -331,7 +344,7 @@ MinerU's job results are temporary: Matcha downloads the markdown, deletes Miner
 
 ```yaml
 paper_store_dir: ~/papers     # empty = save nothing (the default)
-paper_store: picks            # picks (default): only papers the Analyst selected; all: every paper Matcha parses
+paper_store: picks            # picks (default): only papers an analyst selected; all: every paper Matcha parses
 paper_store_zip: false        # also keep MinerU's zip package (markdown, structured JSON, extracted figures)
 ```
 
@@ -342,7 +355,7 @@ Each paper is saved under its arXiv ID:
 ~/papers/2610.13309v1.zip   # only with paper_store_zip: true
 ```
 
-- `picks` keeps the folder small: the Analyst picks at most `analyst_max_papers` papers a day. `all` also keeps every paper parsed from `summary_feeds` and `arxiv_searches` with `use: summary`. Markdown for a paper is typically tens to a few hundred kilobytes; that is an estimate, not a measurement.
+- `picks` keeps the folder small: each analyst with `read_papers` picks at most `max_papers` papers a day. `all` also keeps every paper parsed from `summary_feeds` and `arxiv_searches` with `use: summary`. Markdown for a paper is typically tens to a few hundred kilobytes; that is an estimate, not a measurement.
 - A paper that is already in the folder is read from disk instead of being sent to MinerU, in either mode, so the folder also survives deleting `matcha.db`. A revised arXiv version (`v2`) is a different file.
 - The zip is kept only when `paper_store_zip` is on and the paper is being saved; if MinerU doesn't return one, the markdown is still saved. With MinerU 4.1+ it is the task's result ZIP (`markdown.md`, `middle_json.json`, `structured_content.json`, `images/`), which Matcha downloads anyway to get the markdown. The legacy `/file_parse` API has no zip.
 - The folder is plain files, so other tools can use it: add it to a [Msty](https://msty.app) Knowledge Stack, open it as an Obsidian vault, `grep -r` it, or import files into Zotero by hand. Papers you add to Zotero are parsed again by the llm-for-zotero plugin into its own cache; Matcha does not write to Zotero or that cache.
@@ -395,7 +408,7 @@ sqlite3 "$DB" "SELECT date, COUNT(*) FROM seen GROUP BY date ORDER BY date DESC 
 
 Things to know:
 - Dates are stored in your local time (`YYYY-MM-DD`), so the commands use `date('now','localtime')`. SQLite's plain `date('now')` is UTC and can be a day off in the evening.
-- The Analyst's own bookkeeping is stored in the same table (its links end in `#analyst`), so deleting a day also makes the Analyst screen that day's articles again.
+- The analysts' own bookkeeping is stored in the same table (their links end in `#analyst` or `#analyst:<name>`), so deleting a day also makes the analysts screen that day's articles again.
 - Deleted days vanish from `./matcha -generate-all`, which rebuilds the daily files from this database.
 - A digest file for a day you delete stays on disk until the next run rewrites it; Matcha rewrites today's file at the start of every run.
 - Saved papers (`paper_store_dir`) are separate. Papers already there are reused rather than re-parsed even after a reset, so re-running a day costs LLM time but not MinerU time. To force a re-parse, delete the `.md` (and `.zip`) files for those papers.
@@ -423,7 +436,7 @@ With `show_empty_sections: true` (the default), a section that has nothing to sh
 - `No items returned by this feed.` (for `rss.arxiv.org` feeds this adds that arXiv's RSS is empty on days without announcements, such as weekends and holidays; the arXiv *search* feeds from `arxiv_searches` use the query API and are not weekend-limited)
 - `No new items: 5 read, 5 already seen on earlier days.` (also counts items already shown above in the same digest)
 - `⚠️ Could not read this feed: <error>`
-- For the Daily Analysis: `No new articles to screen: …` (with a warning if some analyst feeds could not be read or returned no items), or a note if the model returned no analysis. When there is an analysis but some analyst feeds were empty, a line under it says `N of M analyst feeds returned no items`.
+- For an analyst's section: `No new articles to screen: …` (with a warning if some analyst feeds could not be read or returned no items), or a note if the model returned no analysis. When there is an analysis but some analyst feeds were empty, a line under it says `N of M analyst feeds returned no items`.
 
 A section that does have new items ends with a short `Not shown again: N already seen on earlier days` line when older items were left out, so you can tell what a manual look at the same feed would additionally show.
 
@@ -435,7 +448,7 @@ With `cluster_similar_stories: true` (the default), feeds that are summarized (`
 Matching is deliberately strict so related-but-different stories stay separate: the outlet suffix (`- Reuters`) and common words are dropped, words that appear in half or more of that feed's headlines (for example "CAD" in a CAD alert, or a person's name in a person-specific alert) are ignored, and two headlines count as the same story only if they share at least three of the remaining words and those words make up at least 40% of their combined remaining words. Clustering only compares items within one feed. Set `cluster_similar_stories: false` to turn it off.
 
 ### Paper summaries with MinerU
-arXiv links in `summary_feeds` (and papers picked by the Analyst) are summarized from the **full paper**, not the abstract. Matcha sends the PDF to a [MinerU](https://github.com/opendatalab/MinerU) API server and feeds the resulting markdown to the LLM with a CAD-oriented prompt.
+arXiv links in `summary_feeds` (and papers picked by an analyst) are summarized from the **full paper**, not the abstract. Matcha sends the PDF to a [MinerU](https://github.com/opendatalab/MinerU) API server and feeds the resulting markdown to the LLM with a CAD-oriented prompt.
 
 ```yaml
 mineru_url: http://localhost:8000   # leave empty to disable

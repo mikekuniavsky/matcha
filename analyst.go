@@ -20,7 +20,7 @@ const (
 	defaultLimit = 20
 )
 
-// analystJob is one Analyst run: the main `analyst_*` settings, or one entry of `analysts`.
+// analystJob is one Analyst run, built from an AnalystConfig.
 type analystJob struct {
 	heading    string // section title, e.g. "Daily Analysis"
 	feeds      []string
@@ -33,19 +33,13 @@ type analystJob struct {
 	notify     bool
 }
 
-// RunAnalyst runs the main Analyst (analyst_feeds/analyst_prompt) and then every named analyst in `analysts`.
+// RunAnalyst runs every analyst in order: the legacy analyst_* one if configured, then `analysts`.
 func RunAnalyst(cfg *Config, store *Storage, llm *LLMClient, writer Writer, fp *gofeed.Parser) {
 	if llm == nil {
 		return
 	}
-	if len(cfg.AnalystFeeds) > 0 && cfg.AnalystPrompt != "" {
-		runAnalystJob(analystJob{
-			heading: "Daily Analysis", feeds: cfg.AnalystFeeds, prompt: cfg.AnalystPrompt, model: cfg.AnalystModel,
-			tag: analystTag, readPapers: cfg.AnalystReadPapers, maxPapers: cfg.AnalystMaxPapers, notify: true,
-		}, cfg, store, llm, writer, fp)
-	}
-	for _, a := range cfg.Analysts {
-		runAnalystJob(a.job(cfg), cfg, store, llm, writer, fp)
+	for i, a := range cfg.analystList() {
+		runAnalystJob(a.job(i == 0), cfg, store, llm, writer, fp)
 	}
 }
 

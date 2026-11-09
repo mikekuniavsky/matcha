@@ -16,7 +16,6 @@ import (
 
 var config string = `markdown_dir_path:
 summary_feeds:
-analyst_feeds:
 arxiv_searches:
   - name: CAD tools and generation   # precise; every hit is parsed in full
     use: summary                     # summary | analyst | feed
@@ -34,8 +33,9 @@ arxiv_searches:
       - parametric CAD
       - B-rep
       - OpenSCAD
-  - name: Broad CAD scan             # noisy; the Analyst screens it
+  - name: Broad CAD scan             # noisy; an analyst screens it
     use: analyst
+    analyst: CAD research scout      # which analyst reads it (default: the first)
     limit: 30
     terms:
       - CadQuery
@@ -73,13 +73,26 @@ paper_store_dir:
 paper_store: picks
 paper_store_zip: false
 show_images: false
-analyst_prompt: You are a strict research scout for an AI-assisted CAD product that generates and edits parametric CAD as code (CadQuery, Build123d, OpenSCAD). Most days only a few of the numbered articles qualify, often none. Pick an article only if its title or abstract is directly about generating, editing, verifying or repairing 3D CAD models with AI (text/image/sketch-to-CAD, CAD code generation, B-rep or CAD-ready mesh generation), design intent or geometric constraints in CAD, LLM agents that drive CAD kernels or tools, CAD datasets and benchmarks, or AI for design for manufacturing. Do not pick an article by analogy, such as general code generation, theorem proving, robotics, simulation, image or video generation, 3D scene reconstruction, or optimization of unrelated systems, unless it explicitly applies the work to CAD or mechanical part design. Ignore unrelated uses of the acronym CAD (computer-aided diagnosis or detection). Pick at most 8. For each pick, give a one-line takeaway and why it matters for a design-studio tool.
-analyst_read_papers: true
-analyst_max_papers: 3
-analyst_model:
-analysts:                            # extra analysts, each with its own feeds, prompt and section
+analysts:                            # each analyst screens its feeds with its own prompt and gets its own section
+  - name: CAD research scout
+    model:                             # optional; defaults to openai_model
+    read_papers: true                  # pick arXiv papers for full-text summaries (MinerU)
+    max_papers: 3
+    feeds:                             # "URL N"; arxiv_searches with use: analyst are added here too
+    prompt: >-
+      You are a strict research scout for an AI-assisted CAD product that generates and edits parametric
+      CAD as code (CadQuery, Build123d, OpenSCAD). Most days only a few of the numbered articles qualify,
+      often none. Pick an article only if its title or abstract is directly about generating, editing,
+      verifying or repairing 3D CAD models with AI (text/image/sketch-to-CAD, CAD code generation, B-rep
+      or CAD-ready mesh generation), design intent or geometric constraints in CAD, LLM agents that drive
+      CAD kernels or tools, CAD datasets and benchmarks, or AI for design for manufacturing. Do not pick
+      an article by analogy, such as general code generation, theorem proving, robotics, simulation, image
+      or video generation, 3D scene reconstruction, or optimization of unrelated systems, unless it
+      explicitly applies the work to CAD or mechanical part design. Ignore unrelated uses of the acronym
+      CAD (computer-aided diagnosis or detection). Pick at most 8. For each pick, give a one-line takeaway
+      and why it matters for a design-studio tool.
   - name: Creator manufacturing demand
-    max_chars: 600                     # characters of each post or article the model sees
+    max_chars: 600                     # characters of each post the model sees (default 1500)
     feeds:
       - https://www.reddit.com/r/Entrepreneur+smallbusiness+ecommerce+shopify+startups+EtsySellers+FulfillmentByAmazon/search.rss?q=manufacturer+OR+manufacturing+OR+prototype+OR+MOQ+OR+%22minimum+order%22&restrict_sr=on&sort=new 25
       - https://www.reddit.com/r/PartneredYoutube+NewTubers+youtubers+InstagramMarketing+Twitch+podcasting/search.rss?q=merch+OR+%22product+line%22+OR+%22own+product%22+OR+manufacturer&restrict_sr=on&sort=new 15
@@ -243,10 +256,7 @@ func LoadConfig() (*Config, error) {
 	cfg.Feeds = loadFeeds(cfg, *opmlFile)
 	arxivFeeds, arxivAnalyst := loadArxivSearches()
 	cfg.Feeds = append(cfg.Feeds, arxivFeeds...)
-	cfg.AnalystFeeds = append(cfg.AnalystFeeds, arxivAnalyst...)
-	var warnings []string
-	cfg.Analysts, warnings = loadAnalysts()
-	for _, w := range warnings {
+	for _, w := range loadAnalysts(cfg, arxivAnalyst) {
 		log.Print(w)
 	}
 

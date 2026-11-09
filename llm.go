@@ -100,17 +100,16 @@ func (l *LLMClient) Analyze(articles []string, promptSuffix string) string {
 	return l.AnalyzeWith(l.config.AnalystPrompt, l.config.AnalystModel, articles, promptSuffix)
 }
 
-// AnalyzeWith sends one Analyst prompt; an empty model means analyst_model, then gpt-4o.
+// AnalyzeWith sends one Analyst prompt; an empty model means analyst_model, then openai_model, then gpt-4o.
 func (l *LLMClient) AnalyzeWith(analystPrompt, model string, articles []string, promptSuffix string) string {
 	if l == nil || len(articles) == 0 {
 		return ""
 	}
 
-	if model == "" {
-		model = l.config.AnalystModel
-	}
-	if model == "" {
-		model = openai.GPT4o
+	for _, m := range []string{l.config.AnalystModel, l.config.OpenAIModel, openai.GPT4o} {
+		if model == "" {
+			model = m
+		}
 	}
 
 	prompt := fmt.Sprintf("%s%s\n\n%s", analystPrompt, promptSuffix, strings.Join(articles, "\n"))
