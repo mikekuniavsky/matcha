@@ -144,6 +144,45 @@ analyst_prompt: You are a strict research scout for an AI-assisted CAD product t
 analyst_read_papers: true
 analyst_max_papers: 3
 analyst_model:
+analysts:                            # extra analysts, each with its own feeds, prompt and section
+  - name: Creator manufacturing demand
+    max_chars: 600                     # characters of each post or article the model sees
+    feeds:
+      - https://www.reddit.com/r/Entrepreneur+smallbusiness+ecommerce+shopify+startups+EtsySellers+FulfillmentByAmazon/search.rss?q=manufacturer+OR+manufacturing+OR+prototype+OR+MOQ+OR+%22minimum+order%22&restrict_sr=on&sort=new 25
+      - https://www.reddit.com/r/PartneredYoutube+NewTubers+youtubers+InstagramMarketing+Twitch+podcasting/search.rss?q=merch+OR+%22product+line%22+OR+%22own+product%22+OR+manufacturer&restrict_sr=on&sort=new 15
+      - https://www.reddit.com/r/IndustrialDesign+productdesign+manufacturing+AskEngineers+3Dprinting/search.rss?q=%22contract+manufacturer%22+OR+%22injection+molding%22+OR+%22small+batch%22+OR+%22production+run%22&restrict_sr=on&sort=new 15
+      - https://hnrss.org/newest?q=%22contract+manufacturer%22 10
+      - https://hnrss.org/newest?q=%22injection+molding%22 10
+      - https://www.modernretail.co/feed/ 15
+      - https://www.tubefilter.com/feed/ 15
+    google_news:                       # plain Google News searches, first 10 results each
+      - '"creator brand" OR "creator-led brand" OR "influencer brand" manufacturing OR manufacturer OR factory when:7d'
+      - 'creator OR influencer OR YouTuber launches "product line" OR "physical product" when:7d'
+      - '"minimum order quantity" OR MOQ small brand manufacturer when:7d'
+      - 'Kickstarter OR Indiegogo delayed manufacturer OR manufacturing OR factory when:7d'
+      - 'Pietra OR Sourcify OR "Maker''s Row" creators manufacturing when:30d'
+    prompt: >-
+      You are a market-signal scout for a product-design tool that takes content creators and
+      independent brands from a product idea to a manufacturable design and quotes from contract
+      manufacturers, for runs of about 1,000 to 10,000 units. The numbered items are forum posts and
+      news. Most days only a few qualify, often none. Pick an item only if it is about a physical
+      product (not apps, courses or other digital products) and shows one of these.
+      PAIN, a creator, small brand or first-time founder describing trouble making a physical product,
+      such as finding or vetting a manufacturer, minimum order quantities, quotes, prototype cost or
+      delays, needing CAD or an industrial designer, tooling cost, quality problems, or small-run
+      economics that do not work.
+      INTENT, a creator or independent brand saying they want to launch their own physical product
+      or product line beyond print-on-demand merch, or asking how to start.
+      MARKET, a creator-led or small brand launching or funding a manufactured product, a crowdfunded
+      product delayed by manufacturing, or a company offering design, sourcing or small-batch
+      manufacturing to creators and small brands.
+      COUNTER, evidence against the idea, such as creators saying existing services already solve
+      this, that they do not want their own products, or that small runs are easy and cheap.
+      Do not pick general business or marketing advice, dropshipping or reselling existing products,
+      print-on-demand shirts and mugs with no custom product, software, or large companies' product news.
+      Pick at most 8. Begin each takeaway with the label and a strength from 1 to 3, for example
+      "PAIN 3", where 3 means a first-hand account with specifics such as costs, quantities,
+      timelines or audience size. For a post, quote a few of the poster's own words.
 ```
 
 ### `summary_feeds` vs `analyst_feeds`
@@ -182,6 +221,43 @@ arxiv_searches:
 - `use: summary` adds it like `summary_feeds` (each hit is parsed in full with MinerU and summarized; default limit 5). `use: analyst` adds it to the Analyst's input (cheap screening of titles and abstracts; default 30). `use: feed` lists links only (default 20).
 - Results are always newest-first. Bad entries (unknown `use`/`field`, no terms, malformed category) are skipped with a warning in the output.
 - Raw feed URLs still work in `feeds`, `summary_feeds` and `analyst_feeds`; `arxiv_searches` entries are added to them.
+
+### Named analysts (`analysts`)
+The main Analyst has one prompt, so it can watch one topic well. `analysts` adds more, each with its own feeds, prompt and section in the digest, so a market-signal scan doesn't dilute the research scout (or the other way round). Each runs after the Daily Analysis and costs one LLM call per run.
+
+```yaml
+analysts:
+  - name: Creator manufacturing demand   # section title; also keys what this analyst has already screened
+    model:                               # optional; defaults to analyst_model
+    max_chars: 600                       # optional; characters of each item's text sent to the model (default 600)
+    feeds:                               # "URL N", like analyst_feeds
+      - https://www.reddit.com/r/Entrepreneur+smallbusiness/search.rss?q=manufacturer+OR+MOQ&restrict_sr=on&sort=new 25
+    google_news:                         # optional plain Google News searches; first 10 results each
+      - '"minimum order quantity" OR MOQ small brand manufacturer when:7d'
+    prompt: >-
+      What to pick. The numbered output format is added for you, as for the main Analyst.
+```
+
+- Every item is screened once per analyst: an article the main Analyst already saw is still shown to a named analyst, and the other way round. Renaming an analyst makes it screen its feeds again.
+- The model sees each item's title and description, or the item's content when there is no description (Reddit's feeds put the post itself only there), without HTML and cut to `max_chars`. Forum posts can be long, and a small local model's context fills quickly: with Ollama, check `num_ctx` against roughly (items x `max_chars` / 4) tokens.
+- Picks are written like the Daily Analysis (`- [n] ...` with the real title linked). Named analysts don't pick papers for full-text summaries and don't send notifications; those stay with the main Analyst.
+- `./matcha -check-feeds` lists each analyst's feeds under its name.
+- Entries without a name, a prompt, or any feeds or `google_news` queries are skipped with a warning in the log.
+
+#### The default: creator manufacturing demand
+The default config ships one named analyst that looks for evidence that content creators and independent brands want to manufacture their own physical products and find the process hard. It reads:
+- **Reddit searches** (newest first) across small-business and e-commerce subreddits, creator subreddits (YouTube, Instagram, Twitch, podcasting), and design and manufacturing subreddits, for words such as manufacturer, prototype, MOQ, contract manufacturer and injection molding. Reddit's search syntax takes `OR` and quoted phrases; edit `q=` in the URL to change the terms or the `r/a+b+c` part to change the subreddits.
+- **Hacker News** posts mentioning contract manufacturers or injection molding (hnrss.org).
+- **Trade press**: Modern Retail (DTC and creator-led brands) and Tubefilter (creator economy).
+- **Google News** searches for creator brands and manufacturing, creators launching product lines, MOQ complaints, crowdfunded products delayed by manufacturing, and companies that already serve this market (Pietra, Sourcify, Maker's Row). `when:7d` limits a search to the last week.
+
+The prompt sorts each pick into **PAIN** (a first-hand account of trouble: finding a manufacturer, MOQs, quotes, prototype cost, needing CAD or an industrial designer, small-run economics), **INTENT** (wanting to launch a physical product), **MARKET** (launches, funding, delays, competitors) or **COUNTER** (evidence against the idea, such as "existing services already solve this"), with a strength from 1 to 3, where 3 is a first-hand account with numbers. A pick reads like:
+
+```
+- **[Factory wants a 5,000 unit MOQ for my first product](https://www.reddit.com/...)** PAIN 3: "quotes are all over the place". Why it matters: ...
+```
+
+These feed URLs were written without being able to fetch them from the development sandbox, so run `./matcha -check-feeds` once and drop any that fail. Reddit sometimes answers RSS requests with `429` or `403` when it sees too much traffic from one address.
 
 ### Analyst LLM Feature
 The Analyst feature enables you to gather articles from specified feeds and analyze them using a prompt sent to a language model like GPT-4o (default). The result is included in the daily digest under an Analysis section. You write on your analyst_prompt setting what do you want the analyst to do on your behalf, for example picking relevant news to your liking (example: a cybersecurity expert interested only in certain type of attack), or having an investing analyst suggesting investment opportunities, etc. 

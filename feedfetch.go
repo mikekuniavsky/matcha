@@ -146,4 +146,10 @@ func runFeedCheck(cfg *Config) {
 		feedURL, _ := getFeedAndLimit(spec)
 		check("analyst: "+shorten(feedURL, 80), feedURL)
 	}
+	for _, a := range cfg.Analysts {
+		for _, spec := range a.allFeeds() {
+			feedURL, _ := getFeedAndLimit(spec)
+			check(a.Name+": "+shorten(feedURL, 80), feedURL)
+		}
+	}
 }

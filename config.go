@@ -77,6 +77,45 @@ analyst_prompt: You are a strict research scout for an AI-assisted CAD product t
 analyst_read_papers: true
 analyst_max_papers: 3
 analyst_model:
+analysts:                            # extra analysts, each with its own feeds, prompt and section
+  - name: Creator manufacturing demand
+    max_chars: 600                     # characters of each post or article the model sees
+    feeds:
+      - https://www.reddit.com/r/Entrepreneur+smallbusiness+ecommerce+shopify+startups+EtsySellers+FulfillmentByAmazon/search.rss?q=manufacturer+OR+manufacturing+OR+prototype+OR+MOQ+OR+%22minimum+order%22&restrict_sr=on&sort=new 25
+      - https://www.reddit.com/r/PartneredYoutube+NewTubers+youtubers+InstagramMarketing+Twitch+podcasting/search.rss?q=merch+OR+%22product+line%22+OR+%22own+product%22+OR+manufacturer&restrict_sr=on&sort=new 15
+      - https://www.reddit.com/r/IndustrialDesign+productdesign+manufacturing+AskEngineers+3Dprinting/search.rss?q=%22contract+manufacturer%22+OR+%22injection+molding%22+OR+%22small+batch%22+OR+%22production+run%22&restrict_sr=on&sort=new 15
+      - https://hnrss.org/newest?q=%22contract+manufacturer%22 10
+      - https://hnrss.org/newest?q=%22injection+molding%22 10
+      - https://www.modernretail.co/feed/ 15
+      - https://www.tubefilter.com/feed/ 15
+    google_news:                       # plain Google News searches, first 10 results each
+      - '"creator brand" OR "creator-led brand" OR "influencer brand" manufacturing OR manufacturer OR factory when:7d'
+      - 'creator OR influencer OR YouTuber launches "product line" OR "physical product" when:7d'
+      - '"minimum order quantity" OR MOQ small brand manufacturer when:7d'
+      - 'Kickstarter OR Indiegogo delayed manufacturer OR manufacturing OR factory when:7d'
+      - 'Pietra OR Sourcify OR "Maker''s Row" creators manufacturing when:30d'
+    prompt: >-
+      You are a market-signal scout for a product-design tool that takes content creators and
+      independent brands from a product idea to a manufacturable design and quotes from contract
+      manufacturers, for runs of about 1,000 to 10,000 units. The numbered items are forum posts and
+      news. Most days only a few qualify, often none. Pick an item only if it is about a physical
+      product (not apps, courses or other digital products) and shows one of these.
+      PAIN, a creator, small brand or first-time founder describing trouble making a physical product,
+      such as finding or vetting a manufacturer, minimum order quantities, quotes, prototype cost or
+      delays, needing CAD or an industrial designer, tooling cost, quality problems, or small-run
+      economics that do not work.
+      INTENT, a creator or independent brand saying they want to launch their own physical product
+      or product line beyond print-on-demand merch, or asking how to start.
+      MARKET, a creator-led or small brand launching or funding a manufactured product, a crowdfunded
+      product delayed by manufacturing, or a company offering design, sourcing or small-batch
+      manufacturing to creators and small brands.
+      COUNTER, evidence against the idea, such as creators saying existing services already solve
+      this, that they do not want their own products, or that small runs are easy and cheap.
+      Do not pick general business or marketing advice, dropshipping or reselling existing products,
+      print-on-demand shirts and mugs with no custom product, software, or large companies' product news.
+      Pick at most 8. Begin each takeaway with the label and a strength from 1 to 3, for example
+      "PAIN 3", where 3 means a first-hand account with specifics such as costs, quantities,
+      timelines or audience size. For a post, quote a few of the poster's own words.
 `
 
 type Config struct {
@@ -110,6 +149,7 @@ type Config struct {
 	AnalystModel           string
 	AnalystReadPapers      bool
 	AnalystMaxPapers       int
+	Analysts               []AnalystConfig
 	DatabaseFilePath       string
 	NotificationTrigger    string
 	NotificationWebhookURL string
@@ -209,6 +249,11 @@ func LoadConfig() (*Config, error) {
 	arxivFeeds, arxivAnalyst := loadArxivSearches()
 	cfg.Feeds = append(cfg.Feeds, arxivFeeds...)
 	cfg.AnalystFeeds = append(cfg.AnalystFeeds, arxivAnalyst...)
+	var warnings []string
+	cfg.Analysts, warnings = loadAnalysts()
+	for _, w := range warnings {
+		log.Print(w)
+	}
 
 	return cfg, nil
 }

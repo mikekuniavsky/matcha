@@ -97,16 +97,23 @@ func (l *LLMClient) summarize(text, prompt, defaultPrompt string, maxCharacters 
 }
 
 func (l *LLMClient) Analyze(articles []string, promptSuffix string) string {
+	return l.AnalyzeWith(l.config.AnalystPrompt, l.config.AnalystModel, articles, promptSuffix)
+}
+
+// AnalyzeWith sends one Analyst prompt; an empty model means analyst_model, then gpt-4o.
+func (l *LLMClient) AnalyzeWith(analystPrompt, model string, articles []string, promptSuffix string) string {
 	if l == nil || len(articles) == 0 {
 		return ""
 	}
 
-	model := l.config.AnalystModel
+	if model == "" {
+		model = l.config.AnalystModel
+	}
 	if model == "" {
 		model = openai.GPT4o
 	}
 
-	prompt := fmt.Sprintf("%s%s\n\n%s", l.config.AnalystPrompt, promptSuffix, strings.Join(articles, "\n"))
+	prompt := fmt.Sprintf("%s%s\n\n%s", analystPrompt, promptSuffix, strings.Join(articles, "\n"))
 
 	resp, err := l.client.CreateChatCompletion(
 		context.Background(),
