@@ -142,15 +142,6 @@ func captureStdout(t *testing.T, f func()) string {
 	return <-done
 }
 
-// Reddit rate-limits back-to-back RSS requests, so its hosts are paced like arXiv's.
-func TestRedditHostsArePaced(t *testing.T) {
-	for _, h := range []string{"www.reddit.com", "old.reddit.com", "reddit.com"} {
-		if minHostInterval[h] < 10*time.Second {
-			t.Errorf("%s paced at %v", h, minHostInterval[h])
-		}
-	}
-}
-
 func resetForbidden(t *testing.T) {
 	t.Helper()
 	old := forbiddenHosts

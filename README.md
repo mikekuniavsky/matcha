@@ -263,8 +263,6 @@ citation_watch:
 - A heavily cited anchor such as DeepCAD gets many new citations a week. Specific, recent papers keep the volume down, and the analyst's screening does the rest.
 - `./matcha -check-feeds` tests a watch like any other feed.
 
-**Finding anchor papers.** `./matcha -anchors` lists the papers that your watched papers (and any papers saved in `paper_store_dir`) cite most often in common, with how many of them cite each (`3 of 6  DeepCAD (2021, cited 500 times)  [arXiv:2105.09492]`), and prints a ready-to-paste `citation_watch:` block. New work in the same area tends to cite those anchors too, so watching them shows what else is new. Papers with no reference list in OpenAlex yet are not counted, and the output says how many.
-
 ### Analysts
 An analyst gathers the newest items from its feeds, sends their titles and descriptions to a language model in one prompt, and writes the model's picks into the digest under a section with the analyst's name. You write in its `prompt` what it should look for: papers relevant to your product, signs of a market, an investment opportunity, a specific kind of security incident. Each analyst has its own feeds and prompt, so several topics don't dilute each other. The default config ships two: a CAD research scout and a creator manufacturing demand scan.
 
@@ -285,7 +283,7 @@ analysts:
 
 - Analysts run in the order listed, before the feeds. Each costs one LLM call per run.
 - Every item is screened once per analyst: an article one analyst already saw is still shown to the others. Renaming an analyst makes it screen its feeds again.
-- The model sees each item's title and description, or the item's content when there is no description (Reddit's feeds put the post itself only there), without HTML and cut to `max_chars`. Forum posts can be long, and a small local model's context fills quickly: with Ollama, check `num_ctx` against roughly (items x `max_chars` / 4) tokens.
+- The model sees each item's title and description, or the item's content when there is no description, without HTML and cut to `max_chars`. Forum posts can be long, and a small local model's context fills quickly: with Ollama, check `num_ctx` against roughly (items x `max_chars` / 4) tokens.
 - The Analyst reads only the first N items of each feed and does no filtering itself, so the feed or search query, not the model, decides what it can see.
 - `./matcha -check-feeds` lists each analyst's feeds under its name.
 - Entries without a name, a prompt, or any feeds are skipped with a warning in the log, as is a second analyst with the same name.
@@ -545,8 +543,6 @@ Run matcha with --help option to see current cli options:
   -o filepath
     	OPML file path to append feeds from opml files
   -t	Run Matcha in Terminal Mode, no markdown files will be created
-  -anchors
-    	List the papers your citation_watch and saved papers cite most often in common (uses OpenAlex), then exit
   -check-feeds
     	Fetch every configured feed once and report status codes and item counts (no digest, LLM or database)
 ```

@@ -171,7 +171,6 @@ type Config struct {
 	NotificationWebhookURL string
 	GenerateAll            bool
 	CheckFeeds             bool
-	Anchors                bool
 	ConfigFile             string // the config file that was loaded
 	CitationWatch          []CitationWatch
 	OpenAlexEmail          string
@@ -196,7 +195,6 @@ func LoadConfig() (*Config, error) {
 	opmlFile := flag.String("o", "", "OPML file path to append feeds from opml files")
 	build := flag.Bool("build", false, "Dev: Build matcha binaries in the bin directory")
 	generateAll := flag.Bool("generate-all", false, "Generate markdown files for all days in the database")
-	anchors := flag.Bool("anchors", false, "List the papers your citation_watch and saved papers cite most often in common (uses OpenAlex), then exit")
 	checkFeeds := flag.Bool("check-feeds", false, "Fetch every configured feed once and report status codes and item counts (no digest, LLM or database)")
 
 	flag.Parse()
@@ -257,7 +255,6 @@ func LoadConfig() (*Config, error) {
 		NotificationWebhookURL: viper.GetString("notification_webhook_url"),
 		GenerateAll:            *generateAll,
 		CheckFeeds:             *checkFeeds,
-		Anchors:                *anchors,
 		ConfigFile:             loadedConfig,
 		OpenAlexEmail:          viper.GetString("openalex_email"),
 		OpenAlexAPIKey:         viper.GetString("openalex_api_key"),

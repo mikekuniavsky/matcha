@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -253,33 +252,6 @@ citation_watch:
 	}
 	if u, _ := url.Parse(feeds[0].url); u.Query().Get("days") != "7" || u.Query()["ref"][0] != "W123" {
 		t.Errorf("feed url = %s", feeds[0].url)
-	}
-}
-
-func TestRunAnchors(t *testing.T) {
-	srv, _ := fakeOpenAlex(t)
-	useFakeOpenAlex(t, srv)
-	cfg := &Config{CitationWatch: []CitationWatch{{Name: "x", Papers: []string{"arXiv:2509.15246", "arXiv:2505.14646"}}}}
-	out := captureStdout(t, func() { runAnchors(cfg) })
-	for _, want := range []string{"2 papers found in OpenAlex, 2 with a reference list", "2 of 2  DeepCAD (2021, cited 500 times)  [arXiv:2105.09492]", "- arXiv:2105.09492   # DeepCAD", "citation_watch:"} {
-		if !strings.Contains(out, want) {
-			t.Errorf("output missing %q:\n%s", want, out)
-		}
-	}
-	if strings.Contains(out, "W999") || strings.Contains(out, "W101") || strings.Contains(out, "W102") {
-		t.Errorf("references cited by only one paper were listed:\n%s", out)
-	}
-}
-
-func TestStoredPaperRefs(t *testing.T) {
-	dir := t.TempDir()
-	for _, name := range []string{"2610.13309v1.md", "cs_0501001v2.md", "notes.md", ".matcha-123", "2611.00002.zip"} {
-		writeFileAtomic(filepath.Join(dir, name), []byte("x"))
-	}
-	got := storedPaperRefs(dir)
-	want := map[string]bool{"arXiv:2610.13309": true, "arXiv:cs/0501001": true}
-	if len(got) != 2 || !want[got[0]] || !want[got[1]] {
-		t.Errorf("refs = %v", got)
 	}
 }
 
