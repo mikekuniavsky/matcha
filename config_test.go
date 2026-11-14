@@ -26,6 +26,15 @@ func TestDefaultConfigParses(t *testing.T) {
 			t.Errorf("search %q: %q, %v", s.Name, u, err)
 		}
 	}
+	var watches []CitationWatch
+	if err := v.UnmarshalKey("citation_watch", &watches); err != nil || len(watches) != 1 || len(watches[0].Papers) != 6 {
+		t.Fatalf("citation_watch: %v (%+v)", err, watches)
+	}
+	for _, p := range watches[0].Papers {
+		if _, err := refFilter(p); err != nil {
+			t.Errorf("citation_watch paper %q: %v", p, err)
+		}
+	}
 	if v.IsSet("analyst_prompt") || v.IsSet("analyst_feeds") {
 		t.Error("default config should use analysts:, not the old analyst_* keys")
 	}

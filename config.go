@@ -44,6 +44,19 @@ arxiv_searches:
       - computer-aided design
       - parametric modeling
       - solid modeling
+openalex_email:                      # optional: OpenAlex asks API users to identify themselves
+citation_watch:                      # follow new papers that cite chosen papers (via OpenAlex)
+  - name: Text/image-to-CAD code generation
+    use: analyst                     # analyst | summary | feed
+    analyst: CAD research scout      # which analyst reads it (default: the first)
+    days: 30                         # citing papers published in the last N days
+    papers:                          # arXiv IDs, DOIs or OpenAlex IDs
+      - arXiv:2509.15246             # GenCAD-3D
+      - arXiv:2505.14646             # CAD-Coder
+      - arXiv:2508.10118             # From Intent to Execution (CAD-RL)
+      - arXiv:2512.06328             # ReCAD
+      - arXiv:2601.12641             # STEP-LLM
+      - arXiv:2511.06194             # NURBGen
 feeds:
   - https://hnrss.org/newest?q=CadQuery+OR+Build123d+OR+OpenSCAD+OR+%22text-to-CAD%22+OR+%22AI+CAD%22 10
   - https://hackaday.com/category/3d-printer-hacks/feed/ 10
@@ -163,6 +176,10 @@ type Config struct {
 	NotificationWebhookURL string
 	GenerateAll            bool
 	CheckFeeds             bool
+	Anchors                bool
+	CitationWatch          []CitationWatch
+	OpenAlexEmail          string
+	OpenAlexAPIKey         string
 }
 
 type RSS struct {
@@ -183,6 +200,7 @@ func LoadConfig() (*Config, error) {
 	opmlFile := flag.String("o", "", "OPML file path to append feeds from opml files")
 	build := flag.Bool("build", false, "Dev: Build matcha binaries in the bin directory")
 	generateAll := flag.Bool("generate-all", false, "Generate markdown files for all days in the database")
+	anchors := flag.Bool("anchors", false, "List the papers your citation_watch and saved papers cite most often in common (uses OpenAlex), then exit")
 	checkFeeds := flag.Bool("check-feeds", false, "Fetch every configured feed once and report status codes and item counts (no digest, LLM or database)")
 
 	flag.Parse()
@@ -242,6 +260,9 @@ func LoadConfig() (*Config, error) {
 		NotificationWebhookURL: viper.GetString("notification_webhook_url"),
 		GenerateAll:            *generateAll,
 		CheckFeeds:             *checkFeeds,
+		Anchors:                *anchors,
+		OpenAlexEmail:          viper.GetString("openalex_email"),
+		OpenAlexAPIKey:         viper.GetString("openalex_api_key"),
 	}
 
 	if cfg.MarkdownDirPath == "" {
@@ -256,6 +277,10 @@ func LoadConfig() (*Config, error) {
 	cfg.Feeds = loadFeeds(cfg, *opmlFile)
 	arxivFeeds, arxivAnalyst := loadArxivSearches()
 	cfg.Feeds = append(cfg.Feeds, arxivFeeds...)
+	openAlexEmail, openAlexKey = strings.TrimSpace(cfg.OpenAlexEmail), strings.TrimSpace(cfg.OpenAlexAPIKey)
+	citeFeeds, citeAnalyst := loadCitationWatch(cfg)
+	cfg.Feeds = append(cfg.Feeds, citeFeeds...)
+	arxivAnalyst = append(arxivAnalyst, citeAnalyst...)
 	for _, w := range loadAnalysts(cfg, arxivAnalyst) {
 		log.Print(w)
 	}

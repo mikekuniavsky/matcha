@@ -25,6 +25,7 @@ type ArxivSearch struct {
 
 // arxivAnalystFeed is an arXiv search with use: analyst, waiting to be attached to an analyst.
 type arxivAnalystFeed struct {
+	kind    string // config key it came from, for warnings (default arxiv_searches)
 	name    string // the search's name, for warnings
 	analyst string // target analyst name; empty = default
 	spec    string // "URL N"

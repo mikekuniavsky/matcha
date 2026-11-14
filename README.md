@@ -111,6 +111,19 @@ arxiv_searches:
       - computer-aided design
       - parametric modeling
       - solid modeling
+openalex_email:                      # optional: OpenAlex asks API users to identify themselves
+citation_watch:                      # follow new papers that cite chosen papers (via OpenAlex)
+  - name: Text/image-to-CAD code generation
+    use: analyst                     # analyst | summary | feed
+    analyst: CAD research scout      # which analyst reads it (default: the first)
+    days: 30                         # citing papers published in the last N days
+    papers:                          # arXiv IDs, DOIs or OpenAlex IDs
+      - arXiv:2509.15246             # GenCAD-3D
+      - arXiv:2505.14646             # CAD-Coder
+      - arXiv:2508.10118             # From Intent to Execution (CAD-RL)
+      - arXiv:2512.06328             # ReCAD
+      - arXiv:2601.12641             # STEP-LLM
+      - arXiv:2511.06194             # NURBGen
 feeds:
   - https://hnrss.org/newest?q=CadQuery+OR+Build123d+OR+OpenSCAD+OR+%22text-to-CAD%22+OR+%22AI+CAD%22 10
   - https://hackaday.com/category/3d-printer-hacks/feed/ 10
@@ -230,6 +243,32 @@ arxiv_searches:
 - `use: summary` adds it like `summary_feeds` (each hit is parsed in full with MinerU and summarized; default limit 5). `use: analyst` adds it to an analyst's feeds (cheap screening of titles and abstracts; default 30): the one named by `analyst:`, or else the first analyst. `use: feed` lists links only (default 20).
 - Results are always newest-first. Bad entries (unknown `use`/`field`, no terms, malformed category) are skipped with a warning in the output.
 - Raw feed URLs still work in `feeds`, `summary_feeds` and an analyst's `feeds`; `arxiv_searches` entries are added to them.
+
+### Citation watch: new papers that cite your papers
+arXiv cannot answer "which new papers cite this one?" (its search covers titles, abstracts and authors, not reference lists), but [OpenAlex](https://openalex.org), a free index of scholarly works and their citations, can. List the papers you care about and Matcha follows what cites them:
+
+```yaml
+openalex_email: you@example.com   # optional but polite: OpenAlex asks API users to identify themselves
+openalex_api_key:                 # optional
+citation_watch:
+  - name: Text/image-to-CAD code generation
+    use: analyst                  # analyst (default) | summary | feed
+    analyst: CAD research scout   # use: analyst only: which analyst reads it (default: the first)
+    days: 30                      # citing papers published in the last N days
+    limit: 50                     # newest N kept (default 50 for analyst, 30 for feed, 5 for summary)
+    papers:                       # arXiv IDs, DOIs or OpenAlex IDs (W...)
+      - arXiv:2509.15246          # GenCAD-3D
+      - arXiv:2505.14646          # CAD-Coder
+```
+
+- It works like `arxiv_searches`: `use: analyst` hands the citing papers to an analyst for screening (cheap, recommended), `use: feed` lists them, `use: summary` also parses each arXiv paper in full with MinerU. Sections are titled `Cites: <name>`.
+- Papers are looked up by their arXiv-issued DOI (`10.48550/arXiv.<id>`), so a very new preprint may not be in OpenAlex yet; Matcha says so in the log, skips it, and uses the rest.
+- A citing paper appears in OpenAlex only after its reference list is processed, which can take days to weeks for a new preprint, so expect to miss the newest few days. Papers still inside the `days` window are picked up on later runs.
+- A paper already listed or screened (from an arXiv search, or under another spelling of its arXiv link, `http`/`https` or with a `v1`) is not listed again.
+- A heavily cited anchor such as DeepCAD gets many new citations a week. Specific, recent papers keep the volume down, and the analyst's screening does the rest.
+- `./matcha -check-feeds` tests a watch like any other feed.
+
+**Finding anchor papers.** `./matcha -anchors` lists the papers that your watched papers (and any papers saved in `paper_store_dir`) cite most often in common, with how many of them cite each (`3 of 6  DeepCAD (2021, cited 500 times)  [arXiv:2105.09492]`), and prints a ready-to-paste `citation_watch:` block. New work in the same area tends to cite those anchors too, so watching them shows what else is new. Papers with no reference list in OpenAlex yet are not counted, and the output says how many.
 
 ### Analysts
 An analyst gathers the newest items from its feeds, sends their titles and descriptions to a language model in one prompt, and writes the model's picks into the digest under a section with the analyst's name. You write in its `prompt` what it should look for: papers relevant to your product, signs of a market, an investment opportunity, a specific kind of security incident. Each analyst has its own feeds and prompt, so several topics don't dilute each other. The default config ships two: a CAD research scout and a creator manufacturing demand scan.
@@ -512,6 +551,8 @@ Run matcha with --help option to see current cli options:
   -o filepath
     	OPML file path to append feeds from opml files
   -t	Run Matcha in Terminal Mode, no markdown files will be created
+  -anchors
+    	List the papers your citation_watch and saved papers cite most often in common (uses OpenAlex), then exit
   -check-feeds
     	Fetch every configured feed once and report status codes and item counts (no digest, LLM or database)
 ```
