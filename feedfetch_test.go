@@ -206,3 +206,17 @@ func TestFetchFeedForbiddenCountResetsOnSuccess(t *testing.T) {
 		}
 	}
 }
+
+// -check-feeds says which config file it read and what it loaded, so a block missing from that
+// file (or indented under the wrong key) is visible at once.
+func TestRunFeedCheckReportsWhatItLoaded(t *testing.T) {
+	cfg := &Config{ConfigFile: "/home/me/matcha/config.yaml",
+		CitationWatch: []CitationWatch{{Name: "a", Papers: []string{"arXiv:2509.15246", "arXiv:2505.14646"}}, {Name: "b", Papers: []string{"W1"}}},
+		Analysts:      []AnalystConfig{{Name: "scout"}}}
+	out := captureStdout(t, func() { runFeedCheck(cfg) })
+	for _, want := range []string{"Config: /home/me/matcha/config.yaml", "Loaded: 0 feeds, 1 analysts, 2 citation watches (3 papers watched)"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q:\n%s", want, out)
+		}
+	}
+}

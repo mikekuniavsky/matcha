@@ -145,6 +145,12 @@ func fetchFeed(fp *gofeed.Parser, feedURL string) (*gofeed.Feed, feedResult, err
 // and prints what came back. It writes no digest, calls no LLM and does not touch the database.
 func runFeedCheck(cfg *Config) {
 	fp := gofeed.NewParser()
+	papers := 0
+	for _, w := range cfg.CitationWatch {
+		papers += len(w.Papers)
+	}
+	fmt.Printf("Config: %s\n", cfg.ConfigFile)
+	fmt.Printf("Loaded: %d feeds, %d analysts, %d citation watches (%d papers watched)\n\n", len(cfg.Feeds), len(cfg.Analysts), len(cfg.CitationWatch), papers)
 	check := func(label, feedURL string) {
 		start := time.Now()
 		feed, res, err := fetchFeed(fp, feedURL)
