@@ -462,7 +462,7 @@ ok    200  1 attempt(s)    1.2s  arXiv: CAD tools and generation  (5 items)
 FAIL  429  4 attempt(s)   88.0s  analyst: https://export.arxiv.org/api/query?...  (http error: 429 Too Many Requests)
 ```
 
-It uses no LLM, writes no files and does not touch the database, so it is safe to run as often as you like (but each run is real traffic to those sites, so a loop of runs can itself trigger a 429).
+It starts by printing which config file it read and how many feeds, analysts and citation watches it loaded (a block that is missing from that file, or indented under another key, shows up as a count of 0). It uses no LLM, writes no files and does not touch the database, so it is safe to run as often as you like (but each run is real traffic to those sites, so a loop of runs can itself trigger a 429).
 
 ### Empty and failed sections
 With `show_empty_sections: true` (the default), a section that has nothing to show still gets its header and a one-line note saying why, so an empty section is distinguishable from one that never ran:

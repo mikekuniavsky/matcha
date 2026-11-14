@@ -172,6 +172,7 @@ type Config struct {
 	GenerateAll            bool
 	CheckFeeds             bool
 	Anchors                bool
+	ConfigFile             string // the config file that was loaded
 	CitationWatch          []CitationWatch
 	OpenAlexEmail          string
 	OpenAlexAPIKey         string
@@ -219,6 +220,7 @@ func LoadConfig() (*Config, error) {
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("error reading config: %w", err)
 	}
+	loadedConfig := viper.ConfigFileUsed()
 
 	cfg := &Config{
 		MarkdownDirPath:        viper.GetString("markdown_dir_path"),
@@ -256,6 +258,7 @@ func LoadConfig() (*Config, error) {
 		GenerateAll:            *generateAll,
 		CheckFeeds:             *checkFeeds,
 		Anchors:                *anchors,
+		ConfigFile:             loadedConfig,
 		OpenAlexEmail:          viper.GetString("openalex_email"),
 		OpenAlexAPIKey:         viper.GetString("openalex_api_key"),
 	}
