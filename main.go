@@ -15,11 +15,6 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	if cfg.Anchors {
-		runAnchors(cfg)
-		return
-	}
-
 	if cfg.CheckFeeds {
 		runFeedCheck(cfg)
 		return

@@ -27,8 +27,7 @@ of it. `TestDefaultConfigParses` checks it is valid YAML (a `: ` inside a plain 
   The old top-level `analyst_*` keys still work as a first analyst "Daily Analysis" (bookkeeping `<url>#analyst`).
   `notification_trigger` applies to the first analyst. Defaults: "CAD research scout" and "Creator manufacturing demand"
   (HN/trade press/Alerts/Google News; feed URLs unverified). Reddit was dropped: the author's `-check-feeds` got 403 on every Reddit search feed.
-- `openalex.go`, `citation.go`: `citation_watch` (new papers citing chosen papers) and `-anchors` (references shared by the watched/saved
-  papers), both via OpenAlex. A watch is a pseudo feed URL `openalex-cites://watch?ref=..&days=..` that `fetchFeed` answers, so it works in
+- `openalex.go`, `citation.go`: `citation_watch` (new papers citing chosen papers) via OpenAlex. A watch is a pseudo feed URL `openalex-cites://watch?ref=..&days=..` that `fetchFeed` answers, so it works in
   listed sections, analysts and `-check-feeds`. `Storage.IsSeen` also matches other spellings of an arXiv link (`http`/`https`, with/without
   `vN`) so OpenAlex's `https://arxiv.org/abs/<id>` and the arXiv API's `http://arxiv.org/abs/<id>v1` are one paper.
 - `arxiv.go`: `arxiv_searches` -> arXiv query-API feed URLs (terms/categories/exclude), sections titled `arXiv: <name>`.
@@ -66,8 +65,8 @@ of it. `TestDefaultConfigParses` checks it is valid YAML (a `: ` inside a plain 
   Matcha from a separate LaunchAgent outside this repo with the same values; the repo scripts are not verified on a real Mac.
 
 ## Verified by the author vs not
-Reported working: MinerU job flow and paper summaries, Google News decoding, similar-story clustering.
-Not yet verified on a real setup: the OpenAlex client (`citation_watch`, `-anchors`; built from the OpenAlex docs and a mock server, the sandbox cannot reach `api.openalex.org` unless that host is allowed), the MinerU 4.1 Tasks client, `paper_store` (including `paper_store_zip`), the 429 retry/pacing behaviour,
+Reported working: MinerU job flow and paper summaries, Google News decoding, similar-story clustering, the OpenAlex citation-watch fetch (`-check-feeds` returned 5 citing papers for the six default seeds in Nov 2026).
+Not yet verified on a real setup: how many of the six default seeds OpenAlex resolves (the watch prints `found N of M`), the analyst's screening of citing papers, the MinerU 4.1 Tasks client, `paper_store` (including `paper_store_zip`), the 429 retry/pacing behaviour,
 the arXiv download-and-upload path, `-check-feeds`. Say so when describing them.
 
 ## Working agreements

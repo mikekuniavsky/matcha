@@ -26,10 +26,6 @@ var (
 		"export.arxiv.org": 3 * time.Second,
 		"rss.arxiv.org":    3 * time.Second,
 		"arxiv.org":        3 * time.Second,
-		// Reddit answered back-to-back RSS searches with 429 (seen 2026-11-09); 10 s apart is a guess, not measured.
-		"www.reddit.com": 10 * time.Second,
-		"old.reddit.com": 10 * time.Second,
-		"reddit.com":     10 * time.Second,
 	}
 	hostLastRequest = map[string]time.Time{}
 

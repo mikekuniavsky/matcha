@@ -17,8 +17,7 @@ import (
 )
 
 // OpenAlex (https://openalex.org) is a free index of scholarly works and their citations. arXiv has no
-// "cited by" lookup, so a citation watch asks OpenAlex for papers that cite chosen papers, and
-// `-anchors` asks it which papers the chosen papers cite most often in common.
+// "cited by" lookup, so a citation watch asks OpenAlex for papers that cite chosen papers.
 //
 // A watch is exposed to the rest of Matcha as a feed URL with the scheme openalex-cites:, which
 // fetchFeed answers by querying OpenAlex. That way a watch works wherever a feed does: listed
@@ -55,7 +54,6 @@ type oaWork struct {
 	AbstractInvertedIndex map[string][]int `json:"abstract_inverted_index"`
 	PrimaryLocation       *oaLocation      `json:"primary_location"`
 	Locations             []oaLocation     `json:"locations"`
-	ReferencedWorks       []string         `json:"referenced_works"`
 }
 
 type oaList struct {
@@ -127,7 +125,7 @@ func (w oaWork) abstract() string {
 }
 
 const (
-	oaSelectLight = "id,doi,display_name,publication_year,cited_by_count,primary_location,locations,referenced_works"
+	oaSelectLight = "id,doi,display_name,publication_year,cited_by_count,primary_location,locations"
 	oaSelectFull  = "id,doi,display_name,publication_date,publication_year,cited_by_count,primary_location,locations,abstract_inverted_index"
 )
 
@@ -292,6 +290,12 @@ func fetchOpenAlexCites(feedURL string) (*gofeed.Feed, feedResult, error) {
 		}
 	}
 	sort.SliceStable(works, func(i, j int) bool { return works[i].PublicationDate > works[j].PublicationDate })
+
+	distinct := map[string]bool{}
+	for _, ref := range q["ref"] {
+		distinct[strings.ToLower(strings.TrimSpace(ref))] = true
+	}
+	fmt.Printf("  OpenAlex: found %d of %d watched papers; %d papers cite them from the last %d days\n", len(ids), len(distinct), len(works), days)
 
 	feed := &gofeed.Feed{Title: "Cites: " + q.Get("name"), Link: "https://openalex.org", FeedLink: "https://openalex.org"}
 	for _, w := range works {
