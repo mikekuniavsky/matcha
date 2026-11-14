@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -113,13 +114,49 @@ func (s *Storage) MarkAsSeen(url, summary, title, feedTitle, feedURL string) err
 	return err
 }
 
+// arxivSeenPatterns returns SQL LIKE patterns for the other spellings of an arXiv link key, so a
+// paper listed once as http://arxiv.org/abs/<id>v1 (the arXiv API) is also seen as
+// https://arxiv.org/abs/<id> (OpenAlex). A "#..." suffix (analyst bookkeeping) is kept.
+func arxivSeenPatterns(key string) []string {
+	base, suffix := key, ""
+	if i := strings.Index(key, "#"); i >= 0 {
+		base, suffix = key[:i], key[i:]
+	}
+	m := arxivIDRe.FindStringSubmatch(base)
+	if m == nil {
+		return nil
+	}
+	id := arxivVersionRe.ReplaceAllString(m[1], "")
+	esc := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	id, suffix = esc.Replace(id), esc.Replace(suffix)
+	var patterns []string
+	for _, scheme := range []string{"http://", "https://"} {
+		patterns = append(patterns, scheme+"arxiv.org/abs/"+id+suffix, scheme+"arxiv.org/abs/"+id+"v%"+suffix)
+	}
+	return patterns
+}
+
 // IsSeen returns (seen, seen_today, summary)
 func (s *Storage) IsSeen(link string) (bool, bool, string) {
 	var urlStr, date, summary sql.NullString
 	err := s.db.QueryRow("SELECT url, date, summary FROM seen WHERE url=?", link).Scan(&urlStr, &date, &summary)
 
 	if err != nil {
-		return false, false, ""
+		patterns := arxivSeenPatterns(link)
+		if len(patterns) == 0 {
+			return false, false, ""
+		}
+		query := "SELECT url, date, summary FROM seen WHERE (" + strings.TrimSuffix(strings.Repeat("url LIKE ? ESCAPE '\\' OR ", len(patterns)), " OR ") + ")"
+		if !strings.Contains(link, "#") {
+			query += " AND url NOT LIKE '%#%'" // analyst bookkeeping rows are not the listing itself
+		}
+		args := make([]interface{}, len(patterns))
+		for i, p := range patterns {
+			args[i] = p
+		}
+		if err := s.db.QueryRow(query+" ORDER BY date DESC LIMIT 1", args...).Scan(&urlStr, &date, &summary); err != nil {
+			return false, false, ""
+		}
 	}
 
 	today := time.Now().Format("2006-01-02")

@@ -81,6 +81,9 @@ func retryAfter(h string) (time.Duration, bool) {
 
 // fetchFeed downloads and parses a feed, retrying on 429 and 503.
 func fetchFeed(fp *gofeed.Parser, feedURL string) (*gofeed.Feed, feedResult, error) {
+	if strings.HasPrefix(feedURL, citeScheme) {
+		return fetchOpenAlexCites(feedURL)
+	}
 	var res feedResult
 	u, err := url.Parse(feedURL)
 	if err != nil {

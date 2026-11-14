@@ -27,6 +27,10 @@ of it. `TestDefaultConfigParses` checks it is valid YAML (a `: ` inside a plain 
   The old top-level `analyst_*` keys still work as a first analyst "Daily Analysis" (bookkeeping `<url>#analyst`).
   `notification_trigger` applies to the first analyst. Defaults: "CAD research scout" and "Creator manufacturing demand"
   (Reddit/HN/trade press/Google News; feed URLs unverified).
+- `openalex.go`, `citation.go`: `citation_watch` (new papers citing chosen papers) and `-anchors` (references shared by the watched/saved
+  papers), both via OpenAlex. A watch is a pseudo feed URL `openalex-cites://watch?ref=..&days=..` that `fetchFeed` answers, so it works in
+  listed sections, analysts and `-check-feeds`. `Storage.IsSeen` also matches other spellings of an arXiv link (`http`/`https`, with/without
+  `vN`) so OpenAlex's `https://arxiv.org/abs/<id>` and the arXiv API's `http://arxiv.org/abs/<id>v1` are one paper.
 - `arxiv.go`: `arxiv_searches` -> arXiv query-API feed URLs (terms/categories/exclude), sections titled `arXiv: <name>`.
 - `mineru.go`, `mineru_tasks.go`, `paper.go`, `paperstore.go`: MinerU client (4.1 Tasks API in `mineru_tasks.go`), reference/appendix trimming, code-link extraction,
   on-disk paper store (`paper_store_dir`).
@@ -62,7 +66,7 @@ of it. `TestDefaultConfigParses` checks it is valid YAML (a `: ` inside a plain 
 
 ## Verified by the author vs not
 Reported working: MinerU job flow and paper summaries, Google News decoding, similar-story clustering.
-Not yet verified on a real setup: the MinerU 4.1 Tasks client, `paper_store` (including `paper_store_zip`), the 429 retry/pacing behaviour,
+Not yet verified on a real setup: the OpenAlex client (`citation_watch`, `-anchors`; built from the OpenAlex docs and a mock server, the sandbox cannot reach `api.openalex.org` unless that host is allowed), the MinerU 4.1 Tasks client, `paper_store` (including `paper_store_zip`), the 429 retry/pacing behaviour,
 the arXiv download-and-upload path, `-check-feeds`. Say so when describing them.
 
 ## Working agreements

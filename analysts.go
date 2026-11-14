@@ -105,6 +105,14 @@ func readAnalysts() ([]AnalystConfig, error) {
 	return raw, err
 }
 
+// source names the config key an analyst feed came from.
+func (f arxivAnalystFeed) source() string {
+	if f.kind == "" {
+		return "arxiv_searches"
+	}
+	return f.kind
+}
+
 // attachArxivAnalystFeeds adds `arxiv_searches` with `use: analyst` to the analyst they name (`analyst:`),
 // or, when they name none, to the legacy analyst_feeds if those are in use, else to the first analyst.
 func attachArxivAnalystFeeds(cfg *Config, raw []AnalystConfig, searches []arxivAnalystFeed) ([]AnalystConfig, []string) {
@@ -129,9 +137,9 @@ func attachArxivAnalystFeeds(cfg *Config, raw []AnalystConfig, searches []arxivA
 		}
 		if !found {
 			if target == "" {
-				warnings = append(warnings, fmt.Sprintf("arxiv_searches %s: use: analyst, but no analyst is configured (skipped)", s.name))
+				warnings = append(warnings, fmt.Sprintf("%s %s: use: analyst, but no analyst is configured (skipped)", s.source(), s.name))
 			} else {
-				warnings = append(warnings, fmt.Sprintf("arxiv_searches %s: no analyst named %q (skipped)", s.name, s.analyst))
+				warnings = append(warnings, fmt.Sprintf("%s %s: no analyst named %q (skipped)", s.source(), s.name, s.analyst))
 			}
 		}
 	}
