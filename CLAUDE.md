@@ -66,8 +66,8 @@ of it. `TestDefaultConfigParses` checks it is valid YAML (a `: ` inside a plain 
   Matcha from a separate LaunchAgent outside this repo with the same values; the repo scripts are not verified on a real Mac.
 
 ## Verified by the author vs not
-Reported working: MinerU job flow and paper summaries, Google News decoding, similar-story clustering.
-Not yet verified on a real setup: the OpenAlex client (`citation_watch`, `-anchors`; built from the OpenAlex docs and a mock server, the sandbox cannot reach `api.openalex.org` unless that host is allowed), the MinerU 4.1 Tasks client, `paper_store` (including `paper_store_zip`), the 429 retry/pacing behaviour,
+Reported working: MinerU job flow and paper summaries, Google News decoding, similar-story clustering, the OpenAlex citation-watch fetch (`-check-feeds` returned 5 citing papers for the six default seeds in Nov 2026).
+Not yet verified on a real setup: `-anchors` and how many of the six default seeds OpenAlex resolves (the watch prints `found N of M`), the analyst's screening of citing papers, the MinerU 4.1 Tasks client, `paper_store` (including `paper_store_zip`), the 429 retry/pacing behaviour,
 the arXiv download-and-upload path, `-check-feeds`. Say so when describing them.
 
 ## Working agreements

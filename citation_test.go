@@ -126,7 +126,17 @@ func TestFetchOpenAlexCites(t *testing.T) {
 	srv, requests := fakeOpenAlex(t)
 	useFakeOpenAlex(t, srv)
 
-	feed, res, err := fetchFeed(gofeed.NewParser(), citationFeedURL("Code generation", []string{"arXiv:2509.15246", "arXiv:2505.14646", "arXiv:2509.15246"}, 30))
+	var (
+		feed *gofeed.Feed
+		res  feedResult
+		err  error
+	)
+	out := captureStdout(t, func() {
+		feed, res, err = fetchFeed(gofeed.NewParser(), citationFeedURL("Code generation", []string{"arXiv:2509.15246", "arXiv:2505.14646", "arXiv:2509.15246"}, 30))
+	})
+	if !strings.Contains(out, "OpenAlex: found 2 of 2 watched papers; 2 papers cite them from the last 30 days") {
+		t.Errorf("summary line missing:\n%s", out)
+	}
 	if err != nil || res.Status != 200 {
 		t.Fatalf("err=%v res=%+v", err, res)
 	}

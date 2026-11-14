@@ -293,6 +293,12 @@ func fetchOpenAlexCites(feedURL string) (*gofeed.Feed, feedResult, error) {
 	}
 	sort.SliceStable(works, func(i, j int) bool { return works[i].PublicationDate > works[j].PublicationDate })
 
+	distinct := map[string]bool{}
+	for _, ref := range q["ref"] {
+		distinct[strings.ToLower(strings.TrimSpace(ref))] = true
+	}
+	fmt.Printf("  OpenAlex: found %d of %d watched papers; %d papers cite them from the last %d days\n", len(ids), len(distinct), len(works), days)
+
 	feed := &gofeed.Feed{Title: "Cites: " + q.Get("name"), Link: "https://openalex.org", FeedLink: "https://openalex.org"}
 	for _, w := range works {
 		item := &gofeed.Item{Title: w.name(), Link: w.link(), GUID: w.link(), Description: w.abstract(), Published: w.PublicationDate}
