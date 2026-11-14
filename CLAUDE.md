@@ -26,7 +26,7 @@ of it. `TestDefaultConfigParses` checks it is valid YAML (a `: ` inside a plain 
   `arxiv_searches` with `use: analyst` go to the analyst named by `analyst:` (else the first). Bookkeeping `<url>#analyst:<slug>`.
   The old top-level `analyst_*` keys still work as a first analyst "Daily Analysis" (bookkeeping `<url>#analyst`).
   `notification_trigger` applies to the first analyst. Defaults: "CAD research scout" and "Creator manufacturing demand"
-  (Reddit/HN/trade press/Google News; feed URLs unverified).
+  (HN/trade press/Alerts/Google News; feed URLs unverified). Reddit was dropped: the author's `-check-feeds` got 403 on every Reddit search feed.
 - `openalex.go`, `citation.go`: `citation_watch` (new papers citing chosen papers) and `-anchors` (references shared by the watched/saved
   papers), both via OpenAlex. A watch is a pseudo feed URL `openalex-cites://watch?ref=..&days=..` that `fetchFeed` answers, so it works in
   listed sections, analysts and `-check-feeds`. `Storage.IsSeen` also matches other spellings of an arXiv link (`http`/`https`, with/without
@@ -48,6 +48,7 @@ of it. `TestDefaultConfigParses` checks it is valid YAML (a `: ` inside a plain 
   not 4.1. The 4.1 contract was read from the `mineru` 4.1.7 wheel (`mineru/tasks/http.py`, `mineru/parser/api_client.py`).
 - **arXiv PDFs cannot be parsed by URL job**: `/pdf/<id>.pdf` 301-redirects to `/pdf/<id>`, MinerU does not follow
   redirects and rejects the extensionless name. Matcha downloads the PDF itself and uploads it.
+- **Reddit** RSS searches answered 403 (and 429 back to back) from the author's machine in Nov 2026; after two 403s from a host in a run, `fetchFeed` skips that host's remaining feeds.
 - **arXiv API** asks for one request per 3 s; `429` was seen in practice.
 - **Google News** `news.google.com/rss/articles/CBMi...` IDs are encrypted and no longer redirect. `googlenews.go` asks
   Google's undocumented `batchexecute` endpoint for the publisher URL; it may break without notice.

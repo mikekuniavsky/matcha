@@ -127,8 +127,6 @@ citation_watch:                      # follow new papers that cite chosen papers
 feeds:
   - https://hnrss.org/newest?q=CadQuery+OR+Build123d+OR+OpenSCAD+OR+%22text-to-CAD%22+OR+%22AI+CAD%22 10
   - https://hackaday.com/category/3d-printer-hacks/feed/ 10
-  - https://www.reddit.com/r/OpenSCAD/.rss 10
-  - https://www.reddit.com/r/cad/.rss 10
 google_news_keywords: CadQuery,Build123d,text-to-CAD,AI CAD,generative CAD,parametric CAD,OpenSCAD
 summarize_google_news: true
 cluster_similar_stories: true
@@ -174,9 +172,6 @@ analysts:                            # each analyst screens its feeds with its o
   - name: Creator manufacturing demand
     max_chars: 600                     # characters of each post the model sees (default 1500)
     feeds:
-      - https://www.reddit.com/r/Entrepreneur+smallbusiness+ecommerce+shopify+startups+EtsySellers+FulfillmentByAmazon/search.rss?q=manufacturer+OR+manufacturing+OR+prototype+OR+MOQ&restrict_sr=on&sort=new 25
-      - https://www.reddit.com/r/PartneredYoutube+NewTubers+youtubers+InstagramMarketing+Twitch+podcasting/search.rss?q=merch+OR+%22product+line%22+OR+%22own+product%22+OR+manufacturer&restrict_sr=on&sort=new 15
-      - https://www.reddit.com/r/IndustrialDesign+productdesign+manufacturing+AskEngineers+3Dprinting/search.rss?q=%22contract+manufacturer%22+OR+%22injection+molding%22+OR+%22small+batch%22+OR+%22production+run%22&restrict_sr=on&sort=new 15
       - https://hnrss.org/newest?q=%22contract+manufacturer%22 10
       - https://hnrss.org/newest?q=%22injection+molding%22 10
       - https://www.modernretail.co/feed/ 15
@@ -314,7 +309,6 @@ Before `analysts`, Matcha had one Analyst configured with top-level keys. They s
 
 #### The default: creator manufacturing demand
 The second default analyst looks for evidence that content creators and independent brands want to manufacture their own physical products and find the process hard. It reads:
-- **Reddit searches** (newest first) across small-business and e-commerce subreddits, creator subreddits (YouTube, Instagram, Twitch, podcasting), and design and manufacturing subreddits, for words such as manufacturer, prototype, MOQ, contract manufacturer and injection molding. Reddit's search syntax takes `OR` and quoted phrases; edit `q=` in the URL to change the terms or the `r/a+b+c` part to change the subreddits.
 - **Hacker News** posts mentioning contract manufacturers or injection molding (hnrss.org).
 - **Trade press**: Modern Retail (DTC and creator-led brands) and Tubefilter (creator economy).
 - **Google News** searches for creator brands and manufacturing, creators launching product lines, MOQ complaints, crowdfunded products delayed by manufacturing, and companies that already serve this market (Pietra, Sourcify, Maker's Row). `when:7d` or `when:30d` limits a search to the last week or month; the narrower searches use 30 days because a week often returned nothing.
@@ -322,10 +316,10 @@ The second default analyst looks for evidence that content creators and independ
 The prompt picks first-hand accounts of trouble getting a product made (finding a manufacturer, MOQs, quotes, prototype cost, needing CAD or an industrial designer, small-run economics), creators who want to launch a physical product, market news (launches, funding, delays, competitors), and evidence against the idea, such as "existing services already solve this". It quotes posters. A pick reads like:
 
 ```
-- **[Factory wants a 5,000 unit MOQ for my first product](https://www.reddit.com/...)** Poster says "quotes are all over the place". Why it matters: ...
+- **[Factory wants a 5,000 unit MOQ for my first product](https://news.ycombinator.com/...)** Poster says "quotes are all over the place". Why it matters: ...
 ```
 
-These feed URLs were written without being able to fetch them from the development sandbox, so run `./matcha -check-feeds` once and drop any that fail. Reddit sometimes answers RSS requests with `429` or `403` when it sees too much traffic from one address.
+These feed URLs were written without being able to fetch them from the development sandbox, so run `./matcha -check-feeds` once and drop any that fail. Reddit is not in the defaults: from the author's machine all three Reddit search feeds answered `403 Forbidden` (and `429` when requested back to back), so Reddit RSS looks closed to scripts. You can still add a Reddit feed under `feeds:`; Matcha spaces requests to Reddit 10 seconds apart and, after two `403` answers from one host in a run, skips the rest of that host's feeds instead of retrying.
 
 #### Analyst output format
 When the articles are numbered (the default, except for the first analyst when `notification_trigger` is set), Matcha appends a strict format to the analyst's `prompt`: one bullet per relevant article, written as `- [n] <takeaway>. Why it matters: <reason>.`, or `No relevant articles today.` Matcha then replaces each `[n]` with the article's real title as a bold link, so the analysis names every paper and links to it without trusting the model to copy titles or URLs. Keep your own prompt about *what* to pick; the format is handled for you.

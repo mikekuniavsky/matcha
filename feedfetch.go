@@ -38,7 +38,13 @@ var (
 	maxRetryAfter = 2 * time.Minute
 
 	sleepFor = time.Sleep
+
+	// 403 answers per host this run: after forbiddenLimit in a row, further requests to that host are skipped.
+	forbiddenHosts = map[string]int{}
 )
+
+// forbiddenLimit is how many 403 answers in a row from one host make Matcha give up on that host for the run.
+const forbiddenLimit = 2
 
 // feedResult describes how a fetch went, for the log and for -check-feeds.
 type feedResult struct {
@@ -89,6 +95,9 @@ func fetchFeed(fp *gofeed.Parser, feedURL string) (*gofeed.Feed, feedResult, err
 	if err != nil {
 		return nil, res, err
 	}
+	if forbiddenHosts[u.Hostname()] >= forbiddenLimit {
+		return nil, res, fmt.Errorf("skipped: %s refused earlier requests with 403 Forbidden (not retried this run)", u.Hostname())
+	}
 	for attempt := 0; ; attempt++ {
 		politeWait(u.Hostname())
 		req, err := http.NewRequest(http.MethodGet, feedURL, nil)
@@ -106,6 +115,11 @@ func fetchFeed(fp *gofeed.Parser, feedURL string) (*gofeed.Feed, feedResult, err
 		res.Status = resp.StatusCode
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
 		resp.Body.Close()
+		if resp.StatusCode == http.StatusForbidden {
+			forbiddenHosts[u.Hostname()]++
+		} else if resp.StatusCode < 400 {
+			forbiddenHosts[u.Hostname()] = 0
+		}
 
 		if (resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable) && attempt < len(retryDelays) {
 			wait, ok := retryAfter(resp.Header.Get("Retry-After"))
