@@ -60,8 +60,6 @@ citation_watch:                      # follow new papers that cite chosen papers
 feeds:
   - https://hnrss.org/newest?q=CadQuery+OR+Build123d+OR+OpenSCAD+OR+%22text-to-CAD%22+OR+%22AI+CAD%22 10
   - https://hackaday.com/category/3d-printer-hacks/feed/ 10
-  - https://www.reddit.com/r/OpenSCAD/.rss 10
-  - https://www.reddit.com/r/cad/.rss 10
 google_news_keywords: CadQuery,Build123d,text-to-CAD,AI CAD,generative CAD,parametric CAD,OpenSCAD
 summarize_google_news: true
 cluster_similar_stories: true
@@ -107,9 +105,6 @@ analysts:                            # each analyst screens its feeds with its o
   - name: Creator manufacturing demand
     max_chars: 600                     # characters of each post the model sees (default 1500)
     feeds:
-      - https://www.reddit.com/r/Entrepreneur+smallbusiness+ecommerce+shopify+startups+EtsySellers+FulfillmentByAmazon/search.rss?q=manufacturer+OR+manufacturing+OR+prototype+OR+MOQ&restrict_sr=on&sort=new 25
-      - https://www.reddit.com/r/PartneredYoutube+NewTubers+youtubers+InstagramMarketing+Twitch+podcasting/search.rss?q=merch+OR+%22product+line%22+OR+%22own+product%22+OR+manufacturer&restrict_sr=on&sort=new 15
-      - https://www.reddit.com/r/IndustrialDesign+productdesign+manufacturing+AskEngineers+3Dprinting/search.rss?q=%22contract+manufacturer%22+OR+%22injection+molding%22+OR+%22small+batch%22+OR+%22production+run%22&restrict_sr=on&sort=new 15
       - https://hnrss.org/newest?q=%22contract+manufacturer%22 10
       - https://hnrss.org/newest?q=%22injection+molding%22 10
       - https://www.modernretail.co/feed/ 15

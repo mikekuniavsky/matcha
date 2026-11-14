@@ -150,3 +150,59 @@ func TestRedditHostsArePaced(t *testing.T) {
 		}
 	}
 }
+
+func resetForbidden(t *testing.T) {
+	t.Helper()
+	old := forbiddenHosts
+	forbiddenHosts = map[string]int{}
+	t.Cleanup(func() { forbiddenHosts = old })
+}
+
+// A host that answers 403 twice in a row is skipped for the rest of the run, with no further
+// requests (and no 429 retry waits) to it.
+func TestFetchFeedGivesUpOnAHostThatKeepsSaying403(t *testing.T) {
+	resetForbidden(t)
+	waits := noSleep(t)
+	var calls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		http.Error(w, "no", http.StatusForbidden)
+	}))
+	defer srv.Close()
+
+	for i := 0; i < 2; i++ {
+		if _, res, err := fetchFeed(gofeed.NewParser(), srv.URL); err == nil || res.Status != 403 || !strings.Contains(err.Error(), "403 Forbidden") {
+			t.Fatalf("attempt %d: res=%+v err=%v", i, res, err)
+		}
+	}
+	_, res, err := fetchFeed(gofeed.NewParser(), srv.URL+"/another-feed")
+	if err == nil || !strings.Contains(err.Error(), "skipped") || res.Attempts != 0 {
+		t.Errorf("third fetch: res=%+v err=%v", res, err)
+	}
+	if calls != 2 || len(*waits) != 0 {
+		t.Errorf("calls=%d waits=%v, want 2 requests and no waits", calls, *waits)
+	}
+}
+
+// One 403 does not block a host, and a success resets the count.
+func TestFetchFeedForbiddenCountResetsOnSuccess(t *testing.T) {
+	resetForbidden(t)
+	noSleep(t)
+	status := []int{403, 200, 403, 200, 403}
+	var i int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s := status[int(atomic.AddInt32(&i, 1))-1]
+		if s == 403 {
+			http.Error(w, "no", s)
+			return
+		}
+		w.Write([]byte(emptyRSS))
+	}))
+	defer srv.Close()
+	for n := range status {
+		_, _, err := fetchFeed(gofeed.NewParser(), srv.URL)
+		if (status[n] == 403) != (err != nil) || (err != nil && strings.Contains(err.Error(), "skipped")) {
+			t.Fatalf("fetch %d (status %d): err=%v", n, status[n], err)
+		}
+	}
+}
