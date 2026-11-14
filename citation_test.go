@@ -306,3 +306,67 @@ func TestIsSeenRecognizesOtherArxivSpellings(t *testing.T) {
 		t.Error("non-arXiv link matched")
 	}
 }
+
+// The whole path from config to analyst input: a citation_watch with use: analyst ends up in the
+// named analyst's feeds, and the analyst sees the citing papers (title, abstract, arXiv link),
+// not the watched papers themselves, and does not see them again once screened.
+func TestCitationWatchFeedsAnAnalyst(t *testing.T) {
+	srv, _ := fakeOpenAlex(t)
+	useFakeOpenAlex(t, srv)
+
+	viper.Reset()
+	defer viper.Reset()
+	viper.SetConfigType("yaml")
+	if err := viper.ReadConfig(strings.NewReader(`
+analysts:
+  - name: CAD research scout
+    prompt: pick relevant papers
+citation_watch:
+  - name: Core papers
+    analyst: CAD research scout
+    papers: [arXiv:2509.15246, arXiv:2505.14646]
+`)); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &Config{}
+	_, analystFeeds := loadCitationWatch(cfg)
+	raw, err := readAnalysts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, warnings := attachArxivAnalystFeeds(cfg, raw, analystFeeds)
+	if len(warnings) != 0 || len(raw) != 1 || len(raw[0].Feeds) != 1 {
+		t.Fatalf("warnings=%v analysts=%+v", warnings, raw)
+	}
+
+	store := testStore(t)
+	job := raw[0].job(true)
+	items, stats := collectArticlesForAnalysis(job, store, gofeed.NewParser())
+	if len(items) != 2 || stats.failed != 0 || stats.read != 2 {
+		t.Fatalf("items=%+v stats=%+v", items, stats)
+	}
+	if items[0].Title != "A journal paper" || items[1].Title != "Newest arXiv paper" ||
+		items[1].Link != "https://arxiv.org/abs/2611.00001" || !strings.Contains(items[1].Description, "We cite CAD-Coder") {
+		t.Errorf("items = %+v", items)
+	}
+
+	// On a later day the same papers are not offered again (screening is recorded per analyst).
+	if _, err := store.db.Exec("UPDATE seen SET date = '2000-01-01'"); err != nil {
+		t.Fatal(err)
+	}
+	if again, st := collectArticlesForAnalysis(job, store, gofeed.NewParser()); len(again) != 0 || st.alreadySeen != 2 {
+		t.Errorf("second day: items=%+v stats=%+v", again, st)
+	}
+
+	// A paper this analyst already screened from an arXiv search (arXiv's spelling of the link,
+	// http and with a version) is recognized when OpenAlex reports it again.
+	store2 := testStore(t)
+	if _, err := store2.db.Exec("INSERT INTO seen(url, date, summary, title, feed_title) values(?,?,?,?,?)",
+		"http://arxiv.org/abs/2611.00001v1"+job.tag, "2000-01-01", "", "t", "f"); err != nil {
+		t.Fatal(err)
+	}
+	items2, st2 := collectArticlesForAnalysis(job, store2, gofeed.NewParser())
+	if len(items2) != 1 || items2[0].Title != "A journal paper" || st2.alreadySeen != 1 {
+		t.Errorf("cross-spelling: items=%+v stats=%+v", items2, st2)
+	}
+}
